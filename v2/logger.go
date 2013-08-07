@@ -25,6 +25,7 @@ func (self *Log) Message() string {
 type Logger struct {
 	Prefix    string
 	Appenders []Appender
+	StripDirs int
 }
 
 // Log a message and a level to a logger instance. This returns a
@@ -56,15 +57,50 @@ func (self *Logger) Stackf(level Level, stackErr error, messageFmt string, args 
 	return self.logf(level, messageFmt, args...)
 }
 
+
+
+
+var ignoredFileNames = []string{"logger.go"}
+
+
+// Add a file to the list of file names that slogger will skip when it identifies the source 
+// of a message.  This is useful if you have a logging library built on top of slogger.
+// If you IgnoreThisFilenameToo(...) on the files of that library, logging messages
+// will be marked as coming from your code that calls your library, rather than from your library.
+func IgnoreThisFilenameToo(fn string) {
+	ignoredFileNames = append(ignoredFileNames, fn)
+}
+
+func containsAnyIgnoredFilename(s string) bool {
+	for _, ign := range ignoredFileNames {
+		if strings.Contains(s, ign)  {
+			return true
+		}
+	}
+	return false
+}
+
+func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
+	for skip := 0; skip < 100; skip++ {
+		a,b,c,ok := runtime.Caller(skip)
+		shouldBeIgnored := containsAnyIgnoredFilename(b)
+		if !ok || !shouldBeIgnored  {
+			return a,b,c,ok
+		}
+	}
+	return 0, "", 0, false
+}
+
 func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	var errors []error
 
-	_, file, line, ok := runtime.Caller(2)
+	_, file, line, ok := nonSloggerCaller()
+//	_, file, line, ok := runtime.Caller(2+offset)
 	if ok == false {
 		return nil, []error{fmt.Errorf("Failed to find the calling method.")}
 	}
 
-	file = stripDirectories(file, 2)
+	file = stripDirectories(file, self.StripDirs)
 
 	log := &Log{
 		Prefix:     self.Prefix,
@@ -95,9 +131,11 @@ type Level uint8
 const (
 	OFF Level = iota
 	DEBUG
+	ROUTINE
 	INFO
 	WARN
 	ERROR
+	DOOM
 )
 
 func (self Level) Type() string {
@@ -108,8 +146,12 @@ func (self Level) Type() string {
 		return "warn"
 	case INFO:
 		return "info"
+	case ROUTINE:
+		return "routine"
 	case DEBUG:
 		return "debug"
+	case DOOM: 
+		return "doom"
 	}
 
 	return "off?"
