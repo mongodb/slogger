@@ -99,31 +99,6 @@ func internalWarningLog(messageFmt string, args []interface{}) *Log {
 	}
 }
 
-func (self RollingFileAppender) logHeader() {
-	if self.headerGenerator != nil {
-		header := self.headerGenerator()
-		_, file, line, ok := runtime.Caller(2)
-		if !ok {
-			file = "UNKNOWN_FILE"
-			line = -1
-		}
-		
-		log := &Log {
-			Prefix: "header",
-			Level: INFO,
-			Filename: file,
-			Line: line,
-			Timestamp: time.Now(),
-			messageFmt: header,
-			args: []interface{}{},
-		}
-
-		// do not count header as part of size towards rotation in
-		// order to prevent infinite rotation when max size is smaller
-		// than header
-		self.reallyAppend(log, false)
-	}
-}
 func newRotatedFilename(baseFilename string) string {
 	now := time.Now()
 
@@ -157,6 +132,32 @@ func (self RollingFileAppender) listenForAppends() {
 				self.syncCh <- (len(self.appendCh) <= 0)
 			}
 		}
+	}
+}
+
+func (self RollingFileAppender) logHeader() {
+	if self.headerGenerator != nil {
+		header := self.headerGenerator()
+		_, file, line, ok := runtime.Caller(2)
+		if !ok {
+			file = "UNKNOWN_FILE"
+			line = -1
+		}
+		
+		log := &Log {
+			Prefix: "header",
+			Level: INFO,
+			Filename: file,
+			Line: line,
+			Timestamp: time.Now(),
+			messageFmt: header,
+			args: []interface{}{},
+		}
+
+		// do not count header as part of size towards rotation in
+		// order to prevent infinite rotation when max size is smaller
+		// than header
+		self.reallyAppend(log, false)
 	}
 }
 
