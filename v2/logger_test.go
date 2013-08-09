@@ -135,10 +135,11 @@ func TestFilter(test *testing.T) {
 			counter.count)
 	}
 
-	cache := Cache.Copy()
-	if len(cache) != 4 {
-		test.Errorf("Expected all logs to be cached. Received: %d", len(cache))
-	}
+	// disabled caching for now -Tim
+	// cache := Cache.Copy()
+	// if len(cache) != 4 {
+	// 	test.Errorf("Expected all logs to be cached. Received: %d", len(cache))
+	// }
 }
 
 func TestStacktrace(test *testing.T) {
@@ -147,7 +148,7 @@ func TestStacktrace(test *testing.T) {
 	// runtime/proc.c:1214
 
 	stacktrace := NewStackError("").Stacktrace
-	if match, _ := regexp.MatchString("^at slogger/v1/logger_test.go:\\d+", stacktrace[0]); match == false {
+	if match, _ := regexp.MatchString("^at slogger/v2/logger_test.go:\\d+", stacktrace[0]); match == false {
 		test.Errorf("Stacktrace level 0 did not match. Received: %v", stacktrace[0])
 	}
 
@@ -191,11 +192,11 @@ func TestStackError(test *testing.T) {
 		test.Errorf("Expected output to start with the message. Received:\n%v", str)
 	}
 
-	if match, _ := regexp.MatchString("slogger/v1/logger_test.go:\\d+", str); match == false {
-		test.Errorf("Expected to see output for `v1/logger_test.go`. Received:\n%v", str)
+	if match, _ := regexp.MatchString("slogger/v2/logger_test.go:\\d+", str); match == false {
+		test.Errorf("Expected to see output for `v2/logger_test.go`. Received:\n%v", str)
 	}
 
-	match, err := regexp.MatchString("slogger/v1/logger.go:\\d+", str)
+	match, err := regexp.MatchString("slogger/v2/logger.go:\\d+", str)
 	if err != nil {
 		test.Errorf("Error matching: %v", err)
 	}

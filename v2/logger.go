@@ -112,7 +112,8 @@ func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*
 		args:       args,
 	}
 
-	Cache.Add(log)
+	// cache disabled for now as not yet used -Tim
+	//	Cache.Add(log)
 
 	for _, appender := range self.Appenders {
 		if err := appender.Append(log); err != nil {
