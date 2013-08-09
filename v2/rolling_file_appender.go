@@ -82,21 +82,7 @@ func fullWarningLog() *Log {
 }
 
 func internalWarningLog(messageFmt string, args []interface{}) *Log {
-	_, file, line, ok := runtime.Caller(2)
-	if !ok {
-		file = "UNKNOWN_FILE"
-		line = -1
-	}
-	
-	return &Log {
-		Prefix: "RollingFileAppender",
-		Level: WARN,
-		Filename: file,
-		Line: line,
-		Timestamp: time.Now(),
-		messageFmt: messageFmt,
-		args: args,
-	}
+	return simpleLog("RollingFileAppender", WARN, 3, messageFmt, args)
 }
 
 func newRotatedFilename(baseFilename string) string {
@@ -110,6 +96,24 @@ func newRotatedFilename(baseFilename string) string {
 		now.Hour(),
 		now.Minute(),
 		now.Second())
+}
+
+func simpleLog(prefix string, level Level, callerSkip int, messageFmt string, args []interface{}) *Log {
+	_, file, line, ok := runtime.Caller(callerSkip)
+	if !ok {
+		file = "UNKNOWN_FILE"
+		line = -1
+	}
+	
+	return &Log {
+		Prefix: prefix,
+		Level: level,
+		Filename: file,
+		Line: line,
+		Timestamp: time.Now(),
+		messageFmt: messageFmt,
+		args: args,
+	}
 }
 
 func (self RollingFileAppender) listenForAppends() {
@@ -138,21 +142,7 @@ func (self RollingFileAppender) listenForAppends() {
 func (self RollingFileAppender) logHeader() {
 	if self.headerGenerator != nil {
 		header := self.headerGenerator()
-		_, file, line, ok := runtime.Caller(2)
-		if !ok {
-			file = "UNKNOWN_FILE"
-			line = -1
-		}
-		
-		log := &Log {
-			Prefix: "header",
-			Level: INFO,
-			Filename: file,
-			Line: line,
-			Timestamp: time.Now(),
-			messageFmt: header,
-			args: []interface{}{},
-		}
+		log := simpleLog("header", INFO, 3, header, []interface{}{})
 
 		// do not count header as part of size towards rotation in
 		// order to prevent infinite rotation when max size is smaller
