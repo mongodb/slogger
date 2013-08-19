@@ -185,6 +185,7 @@ func (self RollingFileAppender) reallyAppend(log *Log, trackSize bool) {
 
 	if err != nil {
 		self.errHandler(fmt.Errorf("Could not log to %s : %s", self.file.Name(), err.Error()))
+		return
 	}
 
 	if trackSize {
