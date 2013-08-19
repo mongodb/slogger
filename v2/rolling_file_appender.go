@@ -224,8 +224,7 @@ func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) b
 
 func (self RollingFileAppender) rotate() {
 	// close current log
-	err := self.file.Close()
-	if err != nil {
+	if err := self.file.Close(); err != nil {
 		self.errHandler(fmt.Errorf(
 			"Error while closing %s : %s" , self.absPath, err.Error()))
 	}
