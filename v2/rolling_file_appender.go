@@ -80,9 +80,9 @@ func (self RollingFileAppender) Append(log *Log) error {
 	return nil
 }
 
-func (self RollingFileAppender) Close() {
+func (self RollingFileAppender) Close() error {
 	self.waitUntilEmpty()
-	self.file.Close()
+	return self.file.Close()
 }
 
 // These are commented out until I determine as to whether they are thread-safe -Tim
