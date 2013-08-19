@@ -83,8 +83,7 @@ func containsAnyIgnoredFilename(s string) bool {
 func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 	for skip := 0; skip < 100; skip++ {
 		pc,file,line,ok := runtime.Caller(skip)
-		shouldBeIgnored := containsAnyIgnoredFilename(file)
-		if !ok || !shouldBeIgnored  {
+		if !ok || !containsAnyIgnoredFilename(file)  {
 			return pc,file,line,ok
 		}
 	}
