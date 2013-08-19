@@ -40,7 +40,7 @@ func TestRollingFileAppenderLog(test *testing.T) {
 	}
 	
 	logger.Logf(WARN, "This is more than 10 characters and should cause a log rotation")
-	appender.Sync()
+	appender.waitUntilEmpty()
 
 	afterRotatedLogFilenames, err := rotatedLogFilenames()
 	if err != nil {

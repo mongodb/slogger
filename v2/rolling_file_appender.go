@@ -52,7 +52,7 @@ func (self RollingFileAppender) Append(log *Log) error {
 }
 
 func (self RollingFileAppender) Close() {
-	self.Sync()
+	self.waitUntilEmpty()
 	self.File.Close()
 }
 
@@ -66,13 +66,6 @@ func (self RollingFileAppender) Close() {
 // 	self.headerGenerator = headerGenerator
 // 	self.logHeader()
 // }
-
-func (self RollingFileAppender) Sync() {
-	self.syncCh <- true
-	for !(<- self.syncCh) {
-		self.syncCh <- true
-	}
-}
 
 func fullWarningLog() *Log {
 	return internalWarningLog(
@@ -229,5 +222,12 @@ func (self RollingFileAppender) rotate() {
 	self.File = file
 	self.logHeader()
 	return
+}
+
+func (self RollingFileAppender) waitUntilEmpty() {
+	self.syncCh <- true
+	for !(<- self.syncCh) {
+		self.syncCh <- true
+	}
 }
 
