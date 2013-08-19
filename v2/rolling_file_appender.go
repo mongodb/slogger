@@ -240,7 +240,7 @@ func (self RollingFileAppender) rotate() {
 	if err != nil {
 		self.file = nil
 		self.errHandler(fmt.Errorf(
-			"Failed to create %s . Further logging wil fail. : %s",
+			"Failed to create %s . Further logging will fail. : %s",
 			self.absPath, err.Error()))
 		return
 	}
