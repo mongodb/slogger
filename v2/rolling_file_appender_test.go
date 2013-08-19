@@ -11,14 +11,10 @@ const rfaTestLogFilename = "logger_rfa_test.log"
 
 func TestRollingFileAppenderLog(test *testing.T) {
 	
-	logfile, err := os.Create(rfaTestLogFilename)
-	if err != nil {
-		test.Fatal("Cannot create `logger_rfa_test.output` file.")
-	}
 	defer os.Remove(rfaTestLogFilename)
 
-	appender := NewRollingFileAppender(
-		logfile,
+	appender, err := NewRollingFileAppender(
+		rfaTestLogFilename,
 		100,
 		func(err error) {
 			test.Fatal("Error during logging: " + err.Error())
@@ -27,6 +23,10 @@ func TestRollingFileAppenderLog(test *testing.T) {
 			return "This is a header"
 		},
 	)
+
+	if err != nil {
+		test.Fatal("NewRollingFileAppender() failed: " + err.Error())
+	}
 	
 	logger := &Logger{
 		Prefix: "rfa",

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -12,8 +13,9 @@ import (
 const ROLLING_FILE_APPENDER_CHANNEL_SIZE = 4096
 
 type RollingFileAppender struct {
-	*os.File
 	MaxFileSize uint64
+	file *os.File
+	absPath string
 	curFileSize uint64
 	appendCh chan *Log
 	syncCh chan bool
@@ -21,13 +23,37 @@ type RollingFileAppender struct {
 	headerGenerator func() string
 }
 
-func NewRollingFileAppender(file *os.File, maxFileSize uint64, errHandler func(error), headerGenerator func() string) *RollingFileAppender {
+func NewRollingFileAppender(filename string, maxFileSize uint64, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
 	}
+
+	absPath, err := filepath.Abs(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.OpenFile(
+		absPath,
+		os.O_WRONLY | os.O_APPEND | os.O_CREATE,
+		0666,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	curFileSize := uint64(fileInfo.Size())
+	
 	appender := &RollingFileAppender {
-		File: file,
 		MaxFileSize: maxFileSize,
+		file: file,
+		absPath: absPath,
+		curFileSize: curFileSize,
 		appendCh: make(chan *Log, ROLLING_FILE_APPENDER_CHANNEL_SIZE),
 		syncCh: make(chan bool),
 		errHandler: errHandler,
@@ -35,8 +61,11 @@ func NewRollingFileAppender(file *os.File, maxFileSize uint64, errHandler func(e
 	}
 
 	go appender.listenForAppends()
-	appender.logHeader()
-	return appender
+
+	if curFileSize == 0 {
+		appender.logHeader()
+	}
+	return appender, nil 
 }
 
 func (self RollingFileAppender) Append(log *Log) error {
@@ -53,7 +82,7 @@ func (self RollingFileAppender) Append(log *Log) error {
 
 func (self RollingFileAppender) Close() {
 	self.waitUntilEmpty()
-	self.File.Close()
+	self.file.Close()
 }
 
 // These are commented out until I determine as to whether they are thread-safe -Tim
@@ -117,7 +146,7 @@ func (self RollingFileAppender) listenForAppends() {
 			case log := <- self.appendCh:
 				self.reallyAppend(log, true)
 			default:
-				self.File.Sync()
+				self.file.Sync()
 				needsSync = false
 			}
 		} else {
@@ -145,16 +174,16 @@ func (self RollingFileAppender) logHeader() {
 }
 
 func (self RollingFileAppender) reallyAppend(log *Log, trackSize bool) {
-	if self.File == nil {
+	if self.file == nil {
 		self.errHandler(errors.New("I have no logfile to write to!"))
 	}
 	
 	msg := FormatLog(log)
 
-	n, err := self.File.WriteString(msg)
+	n, err := self.file.WriteString(msg)
 
 	if err != nil {
-		self.errHandler(fmt.Errorf("Could not log to %s : %s", self.File.Name(), err.Error()))
+		self.errHandler(fmt.Errorf("Could not log to %s : %s", self.file.Name(), err.Error()))
 	}
 
 	if trackSize {
@@ -178,10 +207,10 @@ func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) b
 		file, err := os.OpenFile(oldFilename, os.O_RDWR, 0666)
 
 		if err == nil {
-			self.File = file
+			self.file = file
 		} else {
 			self.curFileSize = 0
-			self.File = nil
+			self.file = nil
 			self.errHandler(fmt.Errorf(
 				"Error while reopening %s after failing to rename. : %s",
 				oldFilename, err.Error()))
@@ -194,32 +223,30 @@ func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) b
 
 
 func (self RollingFileAppender) rotate() {
-	filename := self.File.Name()
-	
 	// close current log
-	err := self.File.Close()
+	err := self.file.Close()
 	if err != nil {
 		self.errHandler(fmt.Errorf(
-			"Error while closing %s : %s" , filename, err.Error()))
+			"Error while closing %s : %s" , self.absPath, err.Error()))
 	}
 
 	// rename old log
-	if !self.renameLogFile(filename, newRotatedFilename(filename)) {
+	if !self.renameLogFile(self.absPath, newRotatedFilename(self.absPath)) {
 		return
 	}
 
 	// create new log
-	file, err := os.Create(filename)
+	file, err := os.Create(self.absPath)
 
 	if err != nil {
-		self.File = nil
+		self.file = nil
 		self.errHandler(fmt.Errorf(
 			"Failed to create %s . Further logging wil fail. : %s",
-			filename, err.Error()))
+			self.absPath, err.Error()))
 		return
 	}
 
-	self.File = file
+	self.file = file
 	self.logHeader()
 	return
 }
