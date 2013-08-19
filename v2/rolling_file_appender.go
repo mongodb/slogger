@@ -176,6 +176,7 @@ func (self RollingFileAppender) logHeader() {
 func (self RollingFileAppender) reallyAppend(log *Log, trackSize bool) {
 	if self.file == nil {
 		self.errHandler(errors.New("I have no logfile to write to!"))
+		return
 	}
 	
 	msg := FormatLog(log)
