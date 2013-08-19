@@ -212,7 +212,7 @@ func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) b
 			self.curFileSize = 0
 			self.file = nil
 			self.errHandler(fmt.Errorf(
-				"Error while reopening %s after failing to rename. : %s",
+				"Error while reopening %s after failing to rename. Further logging will fail: %s",
 				oldFilename, err.Error()))
 		}
 		return false
