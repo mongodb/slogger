@@ -61,10 +61,7 @@ func NewRollingFileAppender(filename string, maxFileSize uint64, errHandler func
 	}
 
 	go appender.listenForAppends()
-
-	if curFileSize == 0 {
-		appender.logHeader()
-	}
+	appender.logHeader()
 	return appender, nil 
 }
 
