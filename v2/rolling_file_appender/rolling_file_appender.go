@@ -1,4 +1,4 @@
-package slogger
+package rolling_file_appender
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+	".."
 )
 
 // Do not set this to zero or deadlocks might occur
@@ -17,7 +18,7 @@ type RollingFileAppender struct {
 	file *os.File
 	absPath string
 	curFileSize uint64
-	appendCh chan *Log
+	appendCh chan *slogger.Log
 	syncCh chan (chan bool)
 	errHandler func(error)
 	headerGenerator func() string
@@ -54,7 +55,7 @@ func NewRollingFileAppender(filename string, maxFileSize uint64, errHandler func
 		file: file,
 		absPath: absPath,
 		curFileSize: curFileSize,
-		appendCh: make(chan *Log, ROLLING_FILE_APPENDER_CHANNEL_SIZE),
+		appendCh: make(chan *slogger.Log, ROLLING_FILE_APPENDER_CHANNEL_SIZE),
 		syncCh: make(chan (chan bool)),
 		errHandler: errHandler,
 		headerGenerator: headerGenerator,
@@ -65,7 +66,7 @@ func NewRollingFileAppender(filename string, maxFileSize uint64, errHandler func
 	return appender, nil 
 }
 
-func (self RollingFileAppender) Append(log *Log) error {
+func (self RollingFileAppender) Append(log *slogger.Log) error {
 	select {
 	case self.appendCh <- log:
 		// nothing else to do
@@ -93,15 +94,15 @@ func (self RollingFileAppender) Close() error {
 // 	self.logHeader()
 // }
 
-func fullWarningLog() *Log {
+func fullWarningLog() *slogger.Log {
 	return internalWarningLog(
 		"appendCh is full. You may want to increase ROLLING_FILE_APPENDER_CHANNEL_SIZE (currently %d).",
 		[]interface{}{ROLLING_FILE_APPENDER_CHANNEL_SIZE},
 	)
 }
 
-func internalWarningLog(messageFmt string, args []interface{}) *Log {
-	return simpleLog("RollingFileAppender", WARN, 3, messageFmt, args)
+func internalWarningLog(messageFmt string, args []interface{}) *slogger.Log {
+	return simpleLog("RollingFileAppender", slogger.WARN, 3, messageFmt, args)
 }
 
 func newRotatedFilename(baseFilename string) string {
@@ -117,21 +118,21 @@ func newRotatedFilename(baseFilename string) string {
 		now.Second())
 }
 
-func simpleLog(prefix string, level Level, callerSkip int, messageFmt string, args []interface{}) *Log {
+func simpleLog(prefix string, level slogger.Level, callerSkip int, messageFmt string, args []interface{}) *slogger.Log {
 	_, file, line, ok := runtime.Caller(callerSkip)
 	if !ok {
 		file = "UNKNOWN_FILE"
 		line = -1
 	}
 	
-	return &Log {
+	return &slogger.Log {
 		Prefix: prefix,
 		Level: level,
 		Filename: file,
 		Line: line,
 		Timestamp: time.Now(),
-		messageFmt: messageFmt,
-		args: args,
+		MessageFmt: messageFmt,
+		Args: args,
 	}
 }
 
@@ -161,7 +162,7 @@ func (self RollingFileAppender) listenForAppends() {
 func (self RollingFileAppender) logHeader() {
 	if self.headerGenerator != nil {
 		header := self.headerGenerator()
-		log := simpleLog("header", INFO, 3, header, []interface{}{})
+		log := simpleLog("header", slogger.INFO, 3, header, []interface{}{})
 
 		// do not count header as part of size towards rotation in
 		// order to prevent infinite rotation when max size is smaller
@@ -170,13 +171,13 @@ func (self RollingFileAppender) logHeader() {
 	}
 }
 
-func (self RollingFileAppender) reallyAppend(log *Log, trackSize bool) {
+func (self RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
 	if self.file == nil {
 		self.errHandler(errors.New("I have no logfile to write to!"))
 		return
 	}
 	
-	msg := FormatLog(log)
+	msg := slogger.FormatLog(log)
 
 	n, err := self.file.WriteString(msg)
 
@@ -256,4 +257,3 @@ func (self RollingFileAppender) waitUntilEmpty() {
 		self.syncCh <- replyCh
 	}
 }
-

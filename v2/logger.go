@@ -14,12 +14,12 @@ type Log struct {
 	Filename   string
 	Line       int
 	Timestamp  time.Time
-	messageFmt string
-	args       []interface{}
+	MessageFmt string
+	Args       []interface{}
 }
 
 func (self *Log) Message() string {
-	return fmt.Sprintf(self.messageFmt, self.args...)
+	return fmt.Sprintf(self.MessageFmt, self.Args...)
 }
 
 type Logger struct {
@@ -107,8 +107,8 @@ func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*
 		Filename:   file,
 		Line:       line,
 		Timestamp:  time.Now(),
-		messageFmt: messageFmt,
-		args:       args,
+		MessageFmt: messageFmt,
+		Args:       args,
 	}
 
 	// cache disabled for now as not yet used -Tim

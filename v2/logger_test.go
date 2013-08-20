@@ -23,7 +23,7 @@ func TestFormat(test *testing.T) {
 		Level:      INFO,
 		Filename:   "oplog.go",
 		Line:       88,
-		messageFmt: "Tail started on RsId: `backup_test`",
+		MessageFmt: "Tail started on RsId: `backup_test`",
 	}
 
 	expected := "[0001/01/01 00:00:00] [agent.OplogTail.info] [oplog.go:88] Tail started on RsId: `backup_test`\n"

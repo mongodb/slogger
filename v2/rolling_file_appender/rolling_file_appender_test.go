@@ -1,10 +1,11 @@
-package slogger
+package rolling_file_appender
 
 import (
 //	"fmt"
 	"os"
 	"strings"
 	"testing"
+	".."
 )
 
 const rfaTestLogFilename = "logger_rfa_test.log"
@@ -28,9 +29,9 @@ func TestRollingFileAppenderLog(test *testing.T) {
 		test.Fatal("NewRollingFileAppender() failed: " + err.Error())
 	}
 	
-	logger := &Logger{
+	logger := &slogger.Logger{
 		Prefix: "rfa",
-		Appenders: []Appender{appender},
+		Appenders: []slogger.Appender{appender},
 	}
 
 
@@ -39,7 +40,7 @@ func TestRollingFileAppenderLog(test *testing.T) {
 		test.Fatal("Could not get rotatedLogFilenames: " + err.Error())
 	}
 	
-	logger.Logf(WARN, "This is more than 10 characters and should cause a log rotation")
+	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	appender.waitUntilEmpty()
 
 	afterRotatedLogFilenames, err := rotatedLogFilenames()
