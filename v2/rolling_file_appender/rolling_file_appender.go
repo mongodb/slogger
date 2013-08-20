@@ -1,7 +1,6 @@
 package rolling_file_appender
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,7 +172,7 @@ func (self RollingFileAppender) logHeader() {
 
 func (self RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
 	if self.file == nil {
-		self.errHandler(errors.New("I have no logfile to write to!"))
+		self.errHandler(NoFileError{})
 		return
 	}
 	
@@ -182,7 +181,7 @@ func (self RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
 	n, err := self.file.WriteString(msg)
 
 	if err != nil {
-		self.errHandler(fmt.Errorf("Could not log to %s : %s", self.file.Name(), err.Error()))
+		self.errHandler(WriteError{self.absPath, err})
 		return
 	}
 
@@ -200,10 +199,7 @@ func (self RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
 func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) bool {
 	err := os.Rename(oldFilename, newFilename)
 	if err != nil {
-		self.errHandler(fmt.Errorf(
-			"Error while renaming %s to %s . Will reopen. : %s",
-			oldFilename, newFilename, err.Error()))
-
+		self.errHandler(RenameError{oldFilename, newFilename, err})
 		file, err := os.OpenFile(oldFilename, os.O_RDWR, 0666)
 
 		if err == nil {
@@ -211,9 +207,7 @@ func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) b
 		} else {
 			self.curFileSize = 0
 			self.file = nil
-			self.errHandler(fmt.Errorf(
-				"Error while reopening %s after failing to rename. Further logging will fail: %s",
-				oldFilename, err.Error()))
+			self.errHandler(OpenError{oldFilename, err})
 		}
 		return false
 	}
@@ -225,8 +219,7 @@ func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) b
 func (self RollingFileAppender) rotate() {
 	// close current log
 	if err := self.file.Close(); err != nil {
-		self.errHandler(fmt.Errorf(
-			"Error while closing %s : %s" , self.absPath, err.Error()))
+		self.errHandler(CloseError{self.absPath, err})
 	}
 
 	// rename old log
@@ -239,9 +232,7 @@ func (self RollingFileAppender) rotate() {
 
 	if err != nil {
 		self.file = nil
-		self.errHandler(fmt.Errorf(
-			"Failed to create %s . Further logging will fail. : %s",
-			self.absPath, err.Error()))
+		self.errHandler(OpenError{self.absPath, err})
 		return
 	}
 
@@ -255,5 +246,110 @@ func (self RollingFileAppender) waitUntilEmpty() {
 	self.syncCh <- replyCh
 	for !(<- replyCh) {
 		self.syncCh <- replyCh
+	}
+}
+
+type CloseError struct {
+	Filename string
+	Err error
+}
+
+func (self CloseError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to close %s: %s",
+		self.Filename,
+		self.Err.Error(),
+	)
+}
+
+func IsCloseError(err error) bool {
+	switch err.(type) {
+	case CloseError, *CloseError:
+		return true
+	default:
+		return false
+	}
+}
+
+type NoFileError struct {}
+
+func (NoFileError) Error() string {
+	return "rolling_file_appender: No log file to write to"
+}
+
+func IsNoFileError(err error) bool {
+	switch err.(type) {
+	case NoFileError, *NoFileError:
+		return true
+	default:
+		return false
+	}
+}
+
+type OpenError struct {
+	Filename string
+	Err error
+}
+
+func (self OpenError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to open %s: %s",
+		self.Filename,
+		self.Err.Error(),
+	)
+}
+
+func IsOpenError(err error) bool {
+	switch err.(type) {
+	case OpenError, *OpenError:
+		return true
+	default:
+		return false
+	}
+}
+
+type RenameError struct {
+	OldFilename string
+	NewFilename string
+	Err error
+}
+
+func (self RenameError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to rename %s to %s: %s",
+		self.OldFilename,
+		self.NewFilename,
+		self.Err.Error(),
+	)
+}
+
+func IsRenameError(err error) bool {
+	switch err.(type) {
+	case RenameError, *RenameError:
+		return true
+	default:
+		return false
+	}
+}
+	
+type WriteError struct {
+	Filename string
+	Err error
+}
+
+func (self WriteError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to write to %s: %s",
+		self.Filename,
+		self.Err.Error(),
+	)
+}
+
+func IsWriteError(err error) bool {
+	switch err.(type) {
+	case WriteError, *WriteError:
+		return true
+	default:
+		return false
 	}
 }
