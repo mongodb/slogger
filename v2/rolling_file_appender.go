@@ -18,7 +18,7 @@ type RollingFileAppender struct {
 	absPath string
 	curFileSize uint64
 	appendCh chan *Log
-	syncCh chan bool
+	syncCh chan (chan bool)
 	errHandler func(error)
 	headerGenerator func() string
 }
@@ -55,7 +55,7 @@ func NewRollingFileAppender(filename string, maxFileSize uint64, errHandler func
 		absPath: absPath,
 		curFileSize: curFileSize,
 		appendCh: make(chan *Log, ROLLING_FILE_APPENDER_CHANNEL_SIZE),
-		syncCh: make(chan bool),
+		syncCh: make(chan (chan bool)),
 		errHandler: errHandler,
 		headerGenerator: headerGenerator,
 	}
@@ -151,8 +151,8 @@ func (self RollingFileAppender) listenForAppends() {
 			case log := <- self.appendCh:
 				self.reallyAppend(log, true)
 				needsSync = true
-			case <- self.syncCh:
-				self.syncCh <- (len(self.appendCh) <= 0)
+			case syncReplyCh := <- self.syncCh:
+				syncReplyCh <- (len(self.appendCh) <= 0)
 			}
 		}
 	}
@@ -250,9 +250,10 @@ func (self RollingFileAppender) rotate() {
 }
 
 func (self RollingFileAppender) waitUntilEmpty() {
-	self.syncCh <- true
-	for !(<- self.syncCh) {
-		self.syncCh <- true
+	replyCh := make(chan bool)
+	self.syncCh <- replyCh
+	for !(<- replyCh) {
+		self.syncCh <- replyCh
 	}
 }
 
