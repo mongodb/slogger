@@ -11,7 +11,7 @@ import (
 )
 
 // Do not set this to zero or deadlocks might occur
-const ROLLING_FILE_APPENDER_CHANNEL_SIZE = 4096
+const APPEND_CHANNEL_SIZE = 4096
 
 type RollingFileAppender struct {
 	MaxFileSize uint64
@@ -24,7 +24,7 @@ type RollingFileAppender struct {
 	headerGenerator func() string
 }
 
-func NewRollingFileAppender(filename string, maxFileSize uint64, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
+func New(filename string, maxFileSize uint64, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
 	}
@@ -55,7 +55,7 @@ func NewRollingFileAppender(filename string, maxFileSize uint64, errHandler func
 		file: file,
 		absPath: absPath,
 		curFileSize: curFileSize,
-		appendCh: make(chan *slogger.Log, ROLLING_FILE_APPENDER_CHANNEL_SIZE),
+		appendCh: make(chan *slogger.Log, APPEND_CHANNEL_SIZE),
 		syncCh: make(chan (chan bool)),
 		errHandler: errHandler,
 		headerGenerator: headerGenerator,
@@ -96,8 +96,8 @@ func (self RollingFileAppender) Close() error {
 
 func fullWarningLog() *slogger.Log {
 	return internalWarningLog(
-		"appendCh is full. You may want to increase ROLLING_FILE_APPENDER_CHANNEL_SIZE (currently %d).",
-		[]interface{}{ROLLING_FILE_APPENDER_CHANNEL_SIZE},
+		"appendCh is full. You may want to increase APPEND_CHANNEL_SIZE (currently %d).",
+		[]interface{}{APPEND_CHANNEL_SIZE},
 	)
 }
 

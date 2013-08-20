@@ -14,7 +14,7 @@ func TestRollingFileAppenderLog(test *testing.T) {
 	
 	defer os.Remove(rfaTestLogFilename)
 
-	appender, err := NewRollingFileAppender(
+	appender, err := New(
 		rfaTestLogFilename,
 		100,
 		func(err error) {
