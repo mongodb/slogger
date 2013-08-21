@@ -263,12 +263,8 @@ func (self CloseError) Error() string {
 }
 
 func IsCloseError(err error) bool {
-	switch err.(type) {
-	case CloseError, *CloseError:
-		return true
-	default:
-		return false
-	}
+	_, ok := err.(CloseError)
+	return ok
 }
 
 type NoFileError struct {}
@@ -278,12 +274,8 @@ func (NoFileError) Error() string {
 }
 
 func IsNoFileError(err error) bool {
-	switch err.(type) {
-	case NoFileError, *NoFileError:
-		return true
-	default:
-		return false
-	}
+	_, ok := err.(NoFileError)
+	return ok
 }
 
 type OpenError struct {
@@ -300,12 +292,8 @@ func (self OpenError) Error() string {
 }
 
 func IsOpenError(err error) bool {
-	switch err.(type) {
-	case OpenError, *OpenError:
-		return true
-	default:
-		return false
-	}
+	_, ok := err.(OpenError)
+	return ok
 }
 
 type RenameError struct {
@@ -324,12 +312,8 @@ func (self RenameError) Error() string {
 }
 
 func IsRenameError(err error) bool {
-	switch err.(type) {
-	case RenameError, *RenameError:
-		return true
-	default:
-		return false
-	}
+	_, ok := err.(RenameError)
+	return ok
 }
 	
 type WriteError struct {
@@ -346,10 +330,6 @@ func (self WriteError) Error() string {
 }
 
 func IsWriteError(err error) bool {
-	switch err.(type) {
-	case WriteError, *WriteError:
-		return true
-	default:
-		return false
-	}
+	_, ok := err.(WriteError)
+	return ok
 }
