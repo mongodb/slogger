@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 	".."
 )
 
@@ -125,12 +124,10 @@ func TestOldLogRemoval(test *testing.T) {
 	appender.waitUntilEmpty()
 	assertNumLogFiles(test, 2)
 
-	time.Sleep(time.Second)
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	appender.waitUntilEmpty()
 	assertNumLogFiles(test, 3)
 
-	time.Sleep(time.Second)
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	appender.waitUntilEmpty()
 	assertNumLogFiles(test, 3)

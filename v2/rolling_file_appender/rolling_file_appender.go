@@ -108,8 +108,10 @@ func internalWarningLog(messageFmt string, args []interface{}) *slogger.Log {
 	return simpleLog("RollingFileAppender", slogger.WARN, 3, messageFmt, args)
 }
 
-func newRotatedFilename(baseFilename string) string {
-	return rotatedFilename(baseFilename, time.Now())
+func newRotatedFilename(baseFilename string, inc int) string {
+	now := time.Now()
+	now = now.Add(time.Duration(inc) * time.Second)
+	return rotatedFilename(baseFilename, now)
 }
 
 func rotatedFilename(baseFilename string, t time.Time) string {
@@ -265,9 +267,17 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() {
 	return
 }
 
-// returns true on success, false otherwise
-func (self *RollingFileAppender) renameLogFile(oldFilename, newFilename string) bool {
-	err := os.Rename(oldFilename, newFilename)
+func (self *RollingFileAppender) renameLogFile(oldFilename string, inc int) (ok bool) {
+	newFilename := newRotatedFilename(self.absPath, inc)
+	_, err := os.Stat(newFilename) // check if newFilename already exists
+	if err == nil {
+		// exists! try incrementing by 1 second
+		return self.renameLogFile(oldFilename, inc + 1)
+	}
+		
+	err = os.Rename(oldFilename, newFilename)
+
+	
 	if err != nil {
 		self.errHandler(RenameError{oldFilename, newFilename, err})
 		file, err := os.OpenFile(oldFilename, os.O_RDWR, 0666)
@@ -293,7 +303,7 @@ func (self *RollingFileAppender) rotate() {
 	}
 
 	// rename old log
-	if !self.renameLogFile(self.absPath, newRotatedFilename(self.absPath)) {
+	if !self.renameLogFile(self.absPath, 0) {
 		return
 	}
 
