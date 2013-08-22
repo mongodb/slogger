@@ -1,24 +1,105 @@
 package rolling_file_appender
 
 import (
-//	"fmt"
+	"fmt"
 	"os"
-	"strings"
 	"testing"
+	"time"
 	".."
 )
 
+const rfaTestLogDir = "log"
 const rfaTestLogFilename = "logger_rfa_test.log"
 
-func TestRollingFileAppenderLog(test *testing.T) {
-	
-	defer os.Remove(rfaTestLogFilename)
+func TestRotation(test *testing.T) {
+	defer teardown()
 
-	appender, err := New(
-		rfaTestLogFilename,
-		100,
+	appender, logger := setup(test, 10, 10)
+	
+	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
+	appender.waitUntilEmpty()
+
+	assertNumLogFiles(test, 2)
+}
+
+func TestNoRotation(test *testing.T) {
+	defer teardown()
+
+	appender, logger := setup(test, 1000, 10)
+	
+	logger.Logf(slogger.WARN, "This is under 1,000 characters and should not cause a log rotation")
+	appender.waitUntilEmpty()
+
+	assertNumLogFiles(test, 1)
+}
+
+func TestOldLogRemoval(test *testing.T) {
+	defer teardown()
+
+	appender, logger := setup(test, 10, 2)
+
+	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
+	appender.waitUntilEmpty()
+	assertNumLogFiles(test, 2)
+
+	time.Sleep(time.Second)
+	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
+	appender.waitUntilEmpty()
+	assertNumLogFiles(test, 3)
+
+	time.Sleep(time.Second)
+	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
+	appender.waitUntilEmpty()
+	assertNumLogFiles(test, 3)
+}
+
+func assertNumLogFiles(test *testing.T, expected_n int) {
+	actual_n, err := numLogFiles()
+	if err != nil {
+		test.Fatal("Could not get numLogFiles")
+	}
+
+	if expected_n != actual_n {
+		test.Errorf(
+			"Expected number of log files to be %d, not %d",
+			expected_n,
+			actual_n,
+		)
+	}
+}
+
+func numLogFiles() (int, error) {
+	cwd, err := os.Open(rfaTestLogDir)
+	if err != nil {
+		return -1, err
+	}
+	defer cwd.Close()
+
+	var filenames []string
+	filenames, err = cwd.Readdirnames(-1)
+	if err != nil {
+		return -1, err
+	}
+
+	return len(filenames), nil
+}
+	
+func setup(test *testing.T, maxFileSize uint64, maxRotatedLogs int) (appender *RollingFileAppender, logger *slogger.Logger) {
+	os.RemoveAll(rfaTestLogDir)
+	err := os.Mkdir(rfaTestLogDir, 0755)
+
+	if err != nil {
+		test.Fatal("setup() failed to create directory: " + rfaTestLogDir)
+	}
+	
+	appender, err = New(
+		(rfaTestLogDir + "/" + rfaTestLogFilename),
+		maxFileSize,
+		maxRotatedLogs,
 		func(err error) {
-			test.Fatal("Error during logging: " + err.Error())
+			msg := "Error during logging: " + err.Error()
+			fmt.Fprintln(os.Stderr, msg + "\n(Test may deadlock)")
+			test.Fatal(msg)
 		},
 		func() string {
 			return "This is a header"
@@ -29,74 +110,14 @@ func TestRollingFileAppenderLog(test *testing.T) {
 		test.Fatal("NewRollingFileAppender() failed: " + err.Error())
 	}
 	
-	logger := &slogger.Logger{
+	logger = &slogger.Logger{
 		Prefix: "rfa",
 		Appenders: []slogger.Appender{appender},
 	}
 
-
-	beforeRotatedLogFilenames, err := rotatedLogFilenames()
-	if err != nil {
-		test.Fatal("Could not get rotatedLogFilenames: " + err.Error())
-	}
-	
-	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	appender.waitUntilEmpty()
-
-	afterRotatedLogFilenames, err := rotatedLogFilenames()
-	if err != nil {
-		test.Fatal("Could not get rotatedLogFilenames: " + err.Error())
-	}
-
-	if len(afterRotatedLogFilenames) != len(beforeRotatedLogFilenames) + 1 {
-		test.Errorf(
-			"Number of rotate logs did not increase by 1.  Before: %d.  After: %d",
-			len(beforeRotatedLogFilenames), len(afterRotatedLogFilenames))
-	}
-
-	newLogFilename := getNewLogFilename(beforeRotatedLogFilenames, afterRotatedLogFilenames)
-	defer os.Remove(newLogFilename)
+	return
 }
 
-func getNewLogFilename(beforeRotatedLogFilenames []string, afterRotatedLogFilenames []string) string {
-	var newLogFilename string
-
-	for _, newLogFilename = range afterRotatedLogFilenames {
-		found := false
-		for _, beforeLogfilename := range beforeRotatedLogFilenames {
-			if beforeLogfilename == newLogFilename {
-				found = true
-				break
-			}
-		}
-		if !found {
-			break
-		}
-	}
-	return newLogFilename;
-}
-
-func rotatedLogFilenames() ([]string, error) {
-	const rotatedLogPrefix = rfaTestLogFilename + "."
-	cwd, err := os.Open(".")
-	if err != nil {
-		return nil, err
-	}
-	defer cwd.Close()
-
-	var filenames []string
-	filenames, err = cwd.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	logFilenames := make([]string, 0, len(filenames))
-	for _, filename := range filenames {
-		if strings.HasPrefix(filename, rotatedLogPrefix) {
-			logFilenames = append(logFilenames, filename)
-		}
-	}
-
-	return logFilenames, nil
-}
-	
+func teardown() {
+	os.RemoveAll(rfaTestLogDir)
+}	

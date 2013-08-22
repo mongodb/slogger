@@ -2,8 +2,10 @@ package rolling_file_appender
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"time"
 	".."
@@ -14,6 +16,7 @@ const APPEND_CHANNEL_SIZE = 4096
 
 type RollingFileAppender struct {
 	MaxFileSize uint64
+	MaxRotatedLogs int
 	file *os.File
 	absPath string
 	curFileSize uint64
@@ -23,7 +26,7 @@ type RollingFileAppender struct {
 	headerGenerator func() string
 }
 
-func New(filename string, maxFileSize uint64, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
+func New(filename string, maxFileSize uint64, maxRotatedLogs int, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
 	}
@@ -48,9 +51,10 @@ func New(filename string, maxFileSize uint64, errHandler func(error), headerGene
 	}
 
 	curFileSize := uint64(fileInfo.Size())
-	
+
 	appender := &RollingFileAppender {
 		MaxFileSize: maxFileSize,
+		MaxRotatedLogs: maxRotatedLogs,
 		file: file,
 		absPath: absPath,
 		curFileSize: curFileSize,
@@ -65,7 +69,7 @@ func New(filename string, maxFileSize uint64, errHandler func(error), headerGene
 	return appender, nil 
 }
 
-func (self RollingFileAppender) Append(log *slogger.Log) error {
+func (self *RollingFileAppender) Append(log *slogger.Log) error {
 	select {
 	case self.appendCh <- log:
 		// nothing else to do
@@ -77,7 +81,7 @@ func (self RollingFileAppender) Append(log *slogger.Log) error {
 	return nil
 }
 
-func (self RollingFileAppender) Close() error {
+func (self *RollingFileAppender) Close() error {
 	self.waitUntilEmpty()
 	return self.file.Close()
 }
@@ -105,16 +109,18 @@ func internalWarningLog(messageFmt string, args []interface{}) *slogger.Log {
 }
 
 func newRotatedFilename(baseFilename string) string {
-	now := time.Now()
+	return rotatedFilename(baseFilename, time.Now())
+}
 
+func rotatedFilename(baseFilename string, t time.Time) string {
 	return fmt.Sprintf("%s.%d-%02d-%02dT%02d-%02d-%02d",
 		baseFilename,
-		now.Year(),
-		now.Month(),
-		now.Day(),
-		now.Hour(),
-		now.Minute(),
-		now.Second())
+		t.Year(),
+		t.Month(),
+		t.Day(),
+		t.Hour(),
+		t.Minute(),
+		t.Second())
 }
 
 func simpleLog(prefix string, level slogger.Level, callerSkip int, messageFmt string, args []interface{}) *slogger.Log {
@@ -135,7 +141,7 @@ func simpleLog(prefix string, level slogger.Level, callerSkip int, messageFmt st
 	}
 }
 
-func (self RollingFileAppender) listenForAppends() {
+func (self *RollingFileAppender) listenForAppends() {
 	needsSync := false
 	for {
 		if needsSync {
@@ -158,7 +164,7 @@ func (self RollingFileAppender) listenForAppends() {
 	}
 }
 
-func (self RollingFileAppender) logHeader() {
+func (self *RollingFileAppender) logHeader() {
 	if self.headerGenerator != nil {
 		header := self.headerGenerator()
 		log := simpleLog("header", slogger.INFO, 3, header, []interface{}{})
@@ -170,7 +176,7 @@ func (self RollingFileAppender) logHeader() {
 	}
 }
 
-func (self RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
+func (self *RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
 	if self.file == nil {
 		self.errHandler(NoFileError{})
 		return
@@ -195,8 +201,72 @@ func (self RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
 	return
 }
 
+var maxTime = time.Unix(math.MaxInt64 / 2, 0) // divide by 2 to avoid this bug: https://code.google.com/p/go/issues/detail?id=6210
+
+func (self *RollingFileAppender) removeMaxRotatedLogs() {
+	timeStrs, err := self.rotatedTimeStrs()
+
+	if err != nil {
+		self.errHandler(MinorRotationError{err})
+		return
+	}
+
+	timeStrsLen := len(timeStrs)
+	// return if we're under the limit
+	if timeStrsLen <= self.MaxRotatedLogs {
+		return
+	}
+
+	// find oldest Time
+	var oldestTime time.Time = maxTime
+	for _, timeStr := range timeStrs {
+		rotatedTime, err := time.Parse("2006-01-02T15-04-05", timeStr)
+
+		if err == nil && rotatedTime.Before(oldestTime) {
+			oldestTime = rotatedTime
+		}
+	}
+
+	// remove file with oldest Time
+	oldestFilename := rotatedFilename(self.absPath, oldestTime)
+	err = os.Remove(oldestFilename)
+	if err != nil {
+		self.errHandler(MinorRotationError{err})
+		return
+	}
+
+	// return if successful removal would have put us under the limit
+	if timeStrsLen <= (self.MaxRotatedLogs + 1) {
+		return
+	}
+
+	// Now we are in a weird case where we were over the limit by more
+	// than one.  Rather than complicate the above code to find the N
+	// oldest times we will just recursively call ourselves, but only
+	// if we have made any progess to avoid going into an infinite
+	// loop.
+
+	// check if we've made progress
+	timeStrs, err = self.rotatedTimeStrs()
+	if err != nil {
+		self.errHandler(MinorRotationError{err})
+		return
+	}
+	if len(timeStrs) >= timeStrsLen {
+		return
+	}
+
+	// recursively call ourself if there's more to do
+	if len(timeStrs) > self.MaxRotatedLogs {
+		self.removeMaxRotatedLogs()
+		return // explicit return added in hopes of TCO
+	}
+
+	return
+}
+
 // returns true on success, false otherwise
-func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) bool {
+func (self *RollingFileAppender) renameLogFile(oldFilename, newFilename string) bool {
 	err := os.Rename(oldFilename, newFilename)
 	if err != nil {
 		self.errHandler(RenameError{oldFilename, newFilename, err})
@@ -216,7 +286,7 @@ func (self RollingFileAppender) renameLogFile(oldFilename, newFilename string) b
 }
 
 
-func (self RollingFileAppender) rotate() {
+func (self *RollingFileAppender) rotate() {
 	// close current log
 	if err := self.file.Close(); err != nil {
 		self.errHandler(CloseError{self.absPath, err})
@@ -227,9 +297,11 @@ func (self RollingFileAppender) rotate() {
 		return
 	}
 
+	// remove really old logs
+	self.removeMaxRotatedLogs()
+
 	// create new log
 	file, err := os.Create(self.absPath)
-
 	if err != nil {
 		self.file = nil
 		self.errHandler(OpenError{self.absPath, err})
@@ -241,7 +313,34 @@ func (self RollingFileAppender) rotate() {
 	return
 }
 
-func (self RollingFileAppender) waitUntilEmpty() {
+var rotatedTimeRegExp = regexp.MustCompile(`\.(\d+-\d\d-\d\dT\d\d-\d\d-\d\d)$`)
+
+func (self *RollingFileAppender) rotatedTimeStrs() ([]string, error) {
+	logDirname := filepath.Dir(self.absPath)
+	logDir, err := os.Open(logDirname)
+	if err != nil {
+		return nil, err
+	}
+	defer logDir.Close()
+
+	var filenames []string
+	filenames, err = logDir.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	logTimeStrs := make([]string, 0, len(filenames))
+	for _, filename := range filenames {
+		match := rotatedTimeRegExp.FindStringSubmatch(filename)
+		if match != nil {
+			logTimeStrs = append(logTimeStrs, match[1])
+		}
+	}
+
+	return logTimeStrs, nil
+}
+
+func (self *RollingFileAppender) waitUntilEmpty() {
 	replyCh := make(chan bool)
 	self.syncCh <- replyCh
 	for !(<- replyCh) {
@@ -264,6 +363,19 @@ func (self CloseError) Error() string {
 
 func IsCloseError(err error) bool {
 	_, ok := err.(CloseError)
+	return ok
+}
+
+type MinorRotationError struct {
+	Err error
+}
+
+func (self MinorRotationError) Error() string {
+	return("rolling_file_appender: minor error while rotating logs: " + self.Err.Error())
+}
+
+func IsMinorRotationError(err error) bool {
+	_, ok := err.(MinorRotationError)
 	return ok
 }
 
