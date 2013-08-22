@@ -115,6 +115,17 @@ func TestNoRotation(test *testing.T) {
 	assertNumLogFiles(test, 1)
 }
 
+func TestNoRotation2(test *testing.T) {
+	defer teardown()
+
+	appender, logger := setup(test, -1, 10)
+	
+	logger.Logf(slogger.WARN, "This should not cause a log rotation")
+	appender.waitUntilEmpty()
+
+	assertNumLogFiles(test, 1)
+}
+
 func TestOldLogRemoval(test *testing.T) {
 	defer teardown()
 
@@ -198,7 +209,7 @@ func readCurrentLog(test *testing.T) string {
 	return string(bytes)
 }
 	
-func setup(test *testing.T, maxFileSize uint64, maxRotatedLogs int) (appender *RollingFileAppender, logger *slogger.Logger) {
+func setup(test *testing.T, maxFileSize int64, maxRotatedLogs int) (appender *RollingFileAppender, logger *slogger.Logger) {
 	os.RemoveAll(rfaTestLogDir)
 	err := os.Mkdir(rfaTestLogDir, 0755)
 

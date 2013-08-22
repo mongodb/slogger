@@ -15,18 +15,19 @@ import (
 const APPEND_CHANNEL_SIZE = 4096
 
 type RollingFileAppender struct {
-	MaxFileSize uint64
+	MaxFileSize int64
 	MaxRotatedLogs int
 	file *os.File
 	absPath string
-	curFileSize uint64
+	curFileSize int64
 	appendCh chan *slogger.Log
 	syncCh chan (chan bool)
 	errHandler func(error)
 	headerGenerator func() string
 }
 
-func New(filename string, maxFileSize uint64, maxRotatedLogs int, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
+// Set maxFileSize to < 0 for unlimited file size (no rotation)
+func New(filename string, maxFileSize int64, maxRotatedLogs int, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
 	}
@@ -50,7 +51,7 @@ func New(filename string, maxFileSize uint64, maxRotatedLogs int, errHandler fun
 		return nil, err
 	}
 
-	curFileSize := uint64(fileInfo.Size())
+	curFileSize := fileInfo.Size()
 
 	appender := &RollingFileAppender {
 		MaxFileSize: maxFileSize,
@@ -193,8 +194,8 @@ func (self *RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) 
 		return
 	}
 
-	if trackSize {
-		self.curFileSize += uint64(n)
+	if trackSize && self.MaxFileSize > 0 {
+		self.curFileSize += int64(n)
 
 		if self.curFileSize > self.MaxFileSize {
 			self.rotate()
