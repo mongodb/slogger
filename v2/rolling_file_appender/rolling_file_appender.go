@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"runtime"
 	"time"
-	".."
+	"github.com/tolsen/slogger/v2"
 )
 
 // Do not set this to zero or deadlocks might occur

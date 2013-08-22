@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	".."
+	"github.com/tolsen/slogger/v2"
 )
 
 const rfaTestLogDir = "log"
