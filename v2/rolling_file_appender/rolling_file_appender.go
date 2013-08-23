@@ -27,7 +27,7 @@ type RollingFileAppender struct {
 }
 
 // Set maxFileSize to < 0 for unlimited file size (no rotation)
-func New(filename string, maxFileSize int64, maxRotatedLogs int, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
+func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
 	}
@@ -37,36 +37,58 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, errHandler func
 		return nil, err
 	}
 
-	file, err := os.OpenFile(
-		absPath,
-		os.O_WRONLY | os.O_APPEND | os.O_CREATE,
-		0666,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	curFileSize := fileInfo.Size()
-
 	appender := &RollingFileAppender {
 		MaxFileSize: maxFileSize,
 		MaxRotatedLogs: maxRotatedLogs,
-		file: file,
 		absPath: absPath,
-		curFileSize: curFileSize,
 		appendCh: make(chan *slogger.Log, APPEND_CHANNEL_SIZE),
 		syncCh: make(chan (chan bool)),
 		errHandler: errHandler,
 		headerGenerator: headerGenerator,
 	}
 
+	if rotateIfExists {
+		_, err = os.Stat(absPath)
+		
+		if err == nil {
+			// file exists.  rotate it.
+			// rotate() will create the new logfile and logHeader as well
+			appender.rotate()
+		} else {
+			// does not exist
+			appender.file, err = os.OpenFile(
+				absPath,
+				os.O_WRONLY | os.O_CREATE | os.O_EXCL,
+				0666,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			appender.logHeader()
+		}
+
+	} else { // !rotateIfExists
+		appender.file, err = os.OpenFile(
+			absPath,
+			os.O_WRONLY | os.O_APPEND | os.O_CREATE,
+			0666,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		fileInfo, err := appender.file.Stat()
+		if err != nil {
+			return nil, err
+		}
+
+		appender.curFileSize = fileInfo.Size()
+		appender.logHeader()
+	}
+
 	go appender.listenForAppends()
-	appender.logHeader()
 	return appender, nil 
 }
 
@@ -298,9 +320,11 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string, inc int) (ok 
 
 
 func (self *RollingFileAppender) rotate() {
-	// close current log
-	if err := self.file.Close(); err != nil {
-		self.errHandler(CloseError{self.absPath, err})
+	// close current log if we have one open
+	if self.file != nil {
+		if err := self.file.Close(); err != nil {
+			self.errHandler(CloseError{self.absPath, err})
+		}
 	}
 
 	// rename old log

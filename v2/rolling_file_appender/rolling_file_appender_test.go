@@ -20,7 +20,7 @@ const rfaTestLogPath = rfaTestLogDir + "/" + rfaTestLogFilename
 
 func TestLog(test *testing.T) {
 	defer teardown()
-	appender, logger := setup(test, 1000, 10)
+	appender, logger := setup(test, 1000, 10, false)
 
 	logger.Logf(slogger.WARN, "This is a log message")
 	appender.waitUntilEmpty()
@@ -32,7 +32,7 @@ func TestConcurrentLog(test *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	defer teardown()
-	appender, logger := setup(test, 1024 * 1024 * 1024, 10)
+	appender, logger := setup(test, 1024 * 1024 * 1024, 10, false)
 
 	// Have 10 goroutines log 1000 lines each
 	for i := 0; i < 10; i++ {
@@ -107,7 +107,7 @@ func TestConcurrentLog(test *testing.T) {
 func TestNoRotation(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 1000, 10)
+	appender, logger := setup(test, 1000, 10, false)
 	
 	logger.Logf(slogger.WARN, "This is under 1,000 characters and should not cause a log rotation")
 	appender.waitUntilEmpty()
@@ -118,7 +118,7 @@ func TestNoRotation(test *testing.T) {
 func TestNoRotation2(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, -1, 10)
+	appender, logger := setup(test, -1, 10, false)
 	
 	logger.Logf(slogger.WARN, "This should not cause a log rotation")
 	appender.waitUntilEmpty()
@@ -129,7 +129,7 @@ func TestNoRotation2(test *testing.T) {
 func TestOldLogRemoval(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 10, 2)
+	appender, logger := setup(test, 10, 2, false)
 
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	appender.waitUntilEmpty()
@@ -144,10 +144,28 @@ func TestOldLogRemoval(test *testing.T) {
 	assertNumLogFiles(test, 3)
 }
 
+func TestPreRotation(test *testing.T) {
+	createLogDir(test)
+	
+	file, err := os.Create(rfaTestLogPath)
+	if err != nil {
+		test.Fatalf("Failed to create empty logfile: %v", err)
+	}
+
+	err = file.Close()
+	if err != nil {
+		test.Fatalf("Failed to close logfile: %v", err)
+	}
+
+	appender, _ := newAppenderAndLogger(test, 1000, 2, true)
+	appender.waitUntilEmpty()
+	assertNumLogFiles(test, 2)
+}
+
 func TestRotation(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 10, 10)
+	appender, logger := setup(test, 10, 10, false)
 	
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	appender.waitUntilEmpty()
@@ -178,11 +196,49 @@ func assertNumLogFiles(test *testing.T, expected_n int) {
 	}
 }
 
+func createLogDir(test *testing.T) {
+	os.RemoveAll(rfaTestLogDir)
+	err := os.Mkdir(rfaTestLogDir, 0755)
+
+	if err != nil {
+		test.Fatal("setup() failed to create directory: " + rfaTestLogDir)
+	}
+}
+
 func logSomeLines(logger *slogger.Logger, prefix string, numLines int) {
 	for i := 0; i < numLines; i++ {
 		logger.Logf(slogger.WARN, "%s %d", prefix, i)
 	}
 }
+
+func newAppenderAndLogger(test *testing.T, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool) (appender *RollingFileAppender, logger *slogger.Logger) {
+	appender, err := New(
+		rfaTestLogPath,
+		maxFileSize,
+		maxRotatedLogs,
+		rotateIfExists,
+		func(err error) {
+			msg := "Error during logging: " + err.Error()
+			fmt.Fprintln(os.Stderr, msg + "\n(Test may deadlock)")
+			test.Fatal(msg)
+		},
+		func() string {
+			return "This is a header"
+		},
+	)
+
+	if err != nil {
+		test.Fatal("NewRollingFileAppender() failed: " + err.Error())
+	}
+	
+	logger = &slogger.Logger{
+		Prefix: "rfa",
+		Appenders: []slogger.Appender{appender},
+	}
+	
+	return
+}
+	
 
 func numLogFiles() (int, error) {
 	cwd, err := os.Open(rfaTestLogDir)
@@ -208,39 +264,11 @@ func readCurrentLog(test *testing.T) string {
 
 	return string(bytes)
 }
-	
-func setup(test *testing.T, maxFileSize int64, maxRotatedLogs int) (appender *RollingFileAppender, logger *slogger.Logger) {
-	os.RemoveAll(rfaTestLogDir)
-	err := os.Mkdir(rfaTestLogDir, 0755)
 
-	if err != nil {
-		test.Fatal("setup() failed to create directory: " + rfaTestLogDir)
-	}
+func setup(test *testing.T, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool) (appender *RollingFileAppender, logger *slogger.Logger) {
+	createLogDir(test)
 	
-	appender, err = New(
-		rfaTestLogPath,
-		maxFileSize,
-		maxRotatedLogs,
-		func(err error) {
-			msg := "Error during logging: " + err.Error()
-			fmt.Fprintln(os.Stderr, msg + "\n(Test may deadlock)")
-			test.Fatal(msg)
-		},
-		func() string {
-			return "This is a header"
-		},
-	)
-
-	if err != nil {
-		test.Fatal("NewRollingFileAppender() failed: " + err.Error())
-	}
-	
-	logger = &slogger.Logger{
-		Prefix: "rfa",
-		Appenders: []slogger.Appender{appender},
-	}
-
-	return
+	return newAppenderAndLogger(test, maxFileSize, maxRotatedLogs, rotateIfExists)
 }
 
 func teardown() {
