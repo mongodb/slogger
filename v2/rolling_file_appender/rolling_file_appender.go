@@ -23,11 +23,11 @@ type RollingFileAppender struct {
 	appendCh chan *slogger.Log
 	syncCh chan (chan bool)
 	errHandler func(error)
-	headerGenerator func() string
+	headerGenerator func() []string
 }
 
 // Set maxFileSize to < 0 for unlimited file size (no rotation)
-func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, errHandler func(error), headerGenerator func() string) (*RollingFileAppender, error) {
+func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, errHandler func(error), headerGenerator func() []string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
 	}
@@ -192,12 +192,14 @@ func (self *RollingFileAppender) listenForAppends() {
 func (self *RollingFileAppender) logHeader() {
 	if self.headerGenerator != nil {
 		header := self.headerGenerator()
-		log := simpleLog("header", slogger.INFO, 3, header, []interface{}{})
+		for _, line := range header {
+			log := simpleLog("header", slogger.INFO, 3, line, []interface{}{})
 
-		// do not count header as part of size towards rotation in
-		// order to prevent infinite rotation when max size is smaller
-		// than header
-		self.reallyAppend(log, false)
+			// do not count header as part of size towards rotation in
+			// order to prevent infinite rotation when max size is smaller
+			// than header
+			self.reallyAppend(log, false)
+		}
 	}
 }
 

@@ -222,8 +222,8 @@ func newAppenderAndLogger(test *testing.T, maxFileSize int64, maxRotatedLogs int
 			fmt.Fprintln(os.Stderr, msg + "\n(Test may deadlock)")
 			test.Fatal(msg)
 		},
-		func() string {
-			return "This is a header"
+		func() []string {
+			return []string{"This is a header", "more header"}
 		},
 	)
 
