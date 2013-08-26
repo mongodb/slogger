@@ -160,7 +160,7 @@ func init() {
 	}
 }
 	
-func newLevel(levelStr string) (Level, error) {
+func NewLevel(levelStr string) (Level, error) {
 	level, ok := strToLevel[strings.ToLower(levelStr)]
 	
 	if !ok {
