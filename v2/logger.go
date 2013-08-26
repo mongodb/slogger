@@ -136,25 +136,47 @@ const (
 	WARN
 	ERROR
 	DOOM
+	topLevel
 )
 
-func (self Level) Type() string {
-	switch self {
-	case ERROR:
-		return "error"
-	case WARN:
-		return "warn"
-	case INFO:
-		return "info"
-	case ROUTINE:
-		return "routine"
-	case DEBUG:
-		return "debug"
-	case DOOM: 
-		return "doom"
+var strToLevel map[string]Level
+
+var levelToStr []string
+
+func init() {
+	strToLevel = map[string]Level {
+		"off"     : OFF,
+		"debug"   : DEBUG,
+		"routine" : ROUTINE,
+		"info"    : INFO,
+		"warn"    : WARN,
+		"error"   : ERROR,
+		"doom"    : DOOM,
 	}
 
-	return "off?"
+	levelToStr = make([]string, len(strToLevel))
+	for str, level := range strToLevel {
+		levelToStr[uint8(level)] = str
+	}
+}
+	
+func newLevel(levelStr string) (Level, error) {
+	level, ok := strToLevel[strings.ToLower(levelStr)]
+	
+	if !ok {
+		err := UnknownLevelError{levelStr}
+		return OFF, err
+	}
+
+	return level, nil
+}
+
+func (self Level) Type() string {
+	if self >= topLevel {
+		return "off?"
+	}
+
+	return levelToStr[uint8(self)]
 }
 
 func stacktrace() []string {
@@ -204,3 +226,12 @@ func stripDirectories(filepath string, toKeep int) string {
 
 	return filepath[idxCutoff+1:]
 }
+
+type UnknownLevelError struct {
+	levelStr string
+}
+
+func (self UnknownLevelError) Error() string {
+	return fmt.Sprintf("Unknown level: %s", self.levelStr)
+}
+	
