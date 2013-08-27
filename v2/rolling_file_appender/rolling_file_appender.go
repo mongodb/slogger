@@ -64,6 +64,12 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 		errHandler = func(err error) { }
 	}
 
+	if headerGenerator == nil {
+		headerGenerator = func() []string {
+			return []string{}
+		}
+	}
+
 	absPath, err := filepath.Abs(filename)
 	if err != nil {
 		return nil, err
@@ -222,16 +228,14 @@ func (self *RollingFileAppender) listenForAppends() {
 }
 
 func (self *RollingFileAppender) logHeader() {
-	if self.headerGenerator != nil {
-		header := self.headerGenerator()
-		for _, line := range header {
-			log := simpleLog("header", slogger.INFO, 3, line, []interface{}{})
+	header := self.headerGenerator()
+	for _, line := range header {
+		log := simpleLog("header", slogger.INFO, 3, line, []interface{}{})
 
-			// do not count header as part of size towards rotation in
-			// order to prevent infinite rotation when max size is smaller
-			// than header
-			self.reallyAppend(log, false)
-		}
+		// do not count header as part of size towards rotation in
+		// order to prevent infinite rotation when max size is smaller
+		// than header
+		self.reallyAppend(log, false)
 	}
 }
 
