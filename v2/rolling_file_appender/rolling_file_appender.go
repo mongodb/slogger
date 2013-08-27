@@ -185,6 +185,11 @@ func simpleLog(prefix string, level slogger.Level, callerSkip int, messageFmt st
 	}
 }
 
+// listenForAppends consumes appendCh and syncCh.  It consumes Logs
+// coming down the appendCh, flushing to disk when necessary and the
+// appendCh is empty.  It will reply to syncCh messages (via the given
+// syncReplyCh) after flushing (or if nothing has ever been logged),
+// increasing the chance that it will be able to reply true.
 func (self *RollingFileAppender) listenForAppends() {
 	needsSync := false
 	for {
