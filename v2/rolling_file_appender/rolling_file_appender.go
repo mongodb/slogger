@@ -142,11 +142,11 @@ func (self *RollingFileAppender) Close() error {
 func fullWarningLog() *slogger.Log {
 	return internalWarningLog(
 		"appendCh is full. You may want to increase APPEND_CHANNEL_SIZE (currently %d).",
-		[]interface{}{APPEND_CHANNEL_SIZE},
+		APPEND_CHANNEL_SIZE,
 	)
 }
 
-func internalWarningLog(messageFmt string, args []interface{}) *slogger.Log {
+func internalWarningLog(messageFmt string, args ...interface{}) *slogger.Log {
 	return simpleLog("RollingFileAppender", slogger.WARN, 3, messageFmt, args)
 }
 
