@@ -312,7 +312,7 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() {
 	// recursively call ourself if there's more to do
 	if len(timeStrs) > self.MaxRotatedLogs {
 		self.removeMaxRotatedLogs()
-		return // explicit return added in hopes of TCO
+		return // explicit return added in hopes of Tail-Call Optimization
 	}
 
 	return
