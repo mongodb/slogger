@@ -40,7 +40,25 @@ type RollingFileAppender struct {
 	headerGenerator func() []string
 }
 
-// Set maxFileSize to < 0 for unlimited file size (no rotation)
+// New creates a new RollingFileAppender.  filename is path to the
+// file to log to.  It can be a relative path (with respect to the
+// current working directory) or an absolute path.  maxFileSize is the
+// approximate file size that will be allowed before the log file is
+// rotated.  Rotated log files will have suffix of the form
+// .YYYY-MM-DDTHH-MM-SS appended to them.  Set maxFileSize to a
+// non-positive number if you wish there to be no limit.
+// maxRotatedLogs specifies the maximum number of rotated logs allowed
+// before old logs are deleted.  If rotateIfExists is set to true and
+// a log file with the same filename already exists, then the current
+// one will be rotated.  If rotateIfExists is set to true and a log
+// file with the same filename already exists, then the current log
+// file will be appended to.  If a log file with the same filename
+// does not exist, then a new log file is created regardless of the
+// value of rotateIfExists.  As RotatingFileAppender is asynchronous,
+// an errHandler can be provided that will be called when an error
+// occurs.  It can set to nil if you do not want to provide one.  The
+// return value headerGenerator, if not nil, is logged at the
+// beginning of every log file.
 func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, errHandler func(error), headerGenerator func() []string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
