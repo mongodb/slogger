@@ -92,7 +92,7 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 	return appender, nil 
 }
 
-func (self *RollingFileAppender) Append(log *slogger.Log) error {
+func (self RollingFileAppender) Append(log *slogger.Log) error {
 	select {
 	case self.appendCh <- log:
 		// nothing else to do
