@@ -16,7 +16,6 @@ package rolling_file_appender
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -250,8 +249,6 @@ func (self *RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) 
 	return
 }
 
-var maxTime = time.Unix(math.MaxInt64 / 2, 0) // divide by 2 to avoid this bug: https://code.google.com/p/go/issues/detail?id=6210
-
 func (self *RollingFileAppender) removeMaxRotatedLogs() {
 	timeStrs, err := self.rotatedTimeStrs()
 
@@ -267,13 +264,20 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() {
 	}
 
 	// find oldest Time
-	var oldestTime time.Time = maxTime
+	foundValidTime := false
+	var oldestTime time.Time
 	for _, timeStr := range timeStrs {
 		rotatedTime, err := time.Parse("2006-01-02T15-04-05", timeStr)
 
-		if err == nil && rotatedTime.Before(oldestTime) {
+		if err == nil && (!foundValidTime || rotatedTime.Before(oldestTime)) {
+			foundValidTime = true
 			oldestTime = rotatedTime
 		}
+	}
+
+	if !foundValidTime {
+		// weird, we didn't find any files
+		return
 	}
 
 	// remove file with oldest Time
