@@ -85,29 +85,12 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 		headerGenerator: headerGenerator,
 	}
 
-	if rotateIfExists {
-		_, err = os.Stat(absPath)
-		
-		if err == nil {
-			// file exists.  rotate it.
-			// rotate() will create the new logfile and logHeader as well
-			appender.rotate()
-		} else {
-			// does not exist
-			appender.file, err = os.OpenFile(
-				absPath,
-				os.O_WRONLY | os.O_CREATE | os.O_EXCL,
-				0666,
-			)
-
-			if err != nil {
-				return nil, err
-			}
-
-			appender.logHeader()
-		}
-
-	} else { // !rotateIfExists
+	
+	fileInfo, err := os.Stat(absPath)  
+	if err == nil && rotateIfExists {  // err == nil means file exists
+		appender.rotate()
+	} else {
+		// we're either creating a new log file or appending to the current one
 		appender.file, err = os.OpenFile(
 			absPath,
 			os.O_WRONLY | os.O_APPEND | os.O_CREATE,
@@ -117,12 +100,10 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 			return nil, err
 		}
 
-		fileInfo, err := appender.file.Stat()
-		if err != nil {
-			return nil, err
+		if fileInfo != nil {
+			appender.curFileSize = fileInfo.Size()
 		}
-
-		appender.curFileSize = fileInfo.Size()
+		
 		appender.logHeader()
 	}
 
