@@ -62,6 +62,13 @@ func (self *Logger) Errorf(level Level, messageFmt string, args ...interface{}) 
 	return errors.New(log.Message())
 }
 
+func (self *Logger) Flush() (errors []error) {
+	for _, appender := range self.Appenders {
+		errors = append(errors, appender.Flush())
+	}
+	return
+}
+
 // Stackf is designed to work in tandem with `NewStackError`. This
 // function is similar to `Logf`, but takes a `stackErr`
 // parameter. `stackErr` is expected to be of type StackError, but does

@@ -126,8 +126,20 @@ func (self RollingFileAppender) Append(log *slogger.Log) error {
 }
 
 func (self *RollingFileAppender) Close() error {
-	self.waitUntilEmpty()
+	err := self.Flush()
+	if err != nil {
+		return err
+	}
 	return self.file.Close()
+}
+
+func (self *RollingFileAppender) Flush() error {
+	replyCh := make(chan bool)
+	self.syncCh <- replyCh
+	for !(<- replyCh) {
+		self.syncCh <- replyCh
+	}
+	return nil
 }
 
 // These are commented out until I determine as to whether they are thread-safe -Tim
@@ -373,14 +385,6 @@ func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) 
 	}
 
 	return rotationTimes, nil
-}
-
-func (self *RollingFileAppender) waitUntilEmpty() {
-	replyCh := make(chan bool)
-	self.syncCh <- replyCh
-	for !(<- replyCh) {
-		self.syncCh <- replyCh
-	}
 }
 
 type CloseError struct {

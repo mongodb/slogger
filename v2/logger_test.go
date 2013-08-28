@@ -130,6 +130,10 @@ func (self *countingAppender) Append(log *Log) error {
 	return nil
 }
 
+func (self *countingAppender) Flush() error {
+	return nil
+}
+
 func TestFilter(test *testing.T) {
 	CapLogCache(10)
 

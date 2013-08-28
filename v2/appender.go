@@ -22,6 +22,7 @@ import (
 
 type Appender interface {
 	Append(log *Log) error
+	Flush() error
 }
 
 func FormatLog(log *Log) string {
@@ -43,6 +44,10 @@ type FileAppender struct {
 func (self FileAppender) Append(log *Log) error {
 	_, err := self.WriteString(FormatLog(log))
 	return err
+}
+
+func (self FileAppender) Flush() error {
+	return self.Sync()
 }
 
 func StdOutAppender() *FileAppender {
@@ -75,6 +80,10 @@ func (self StringAppender) Append(log *Log) error {
 	return err
 }
 
+func (self StringAppender) Flush() error {
+	return nil
+}
+
 // Return true if the log should be passed to the underlying
 // `Appender`
 type Filter func(log *Log) bool
@@ -89,6 +98,10 @@ func (self *FilterAppender) Append(log *Log) error {
 	}
 
 	return self.Appender.Append(log)
+}
+
+func (self *FilterAppender) Flush() error {
+	return self.Appender.Flush()
 }
 
 func LevelFilter(threshold Level, appender Appender) *FilterAppender {

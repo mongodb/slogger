@@ -34,10 +34,10 @@ const rfaTestLogPath = rfaTestLogDir + "/" + rfaTestLogFilename
 
 func TestLog(test *testing.T) {
 	defer teardown()
-	appender, logger := setup(test, 1000, 10, false)
+	_, logger := setup(test, 1000, 10, false)
 
 	logger.Logf(slogger.WARN, "This is a log message")
-	appender.waitUntilEmpty()
+	logger.Flush()
 
 	assertCurrentLogContains(test, "This is a log message")
 }
@@ -46,7 +46,7 @@ func TestConcurrentLog(test *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	defer teardown()
-	appender, logger := setup(test, 1024 * 1024 * 1024, 10, false)
+	_, logger := setup(test, 1024 * 1024 * 1024, 10, false)
 
 	// Have 10 goroutines log 1000 lines each
 	for i := 0; i < 10; i++ {
@@ -54,7 +54,7 @@ func TestConcurrentLog(test *testing.T) {
 		go logSomeLines(logger, prefix, 1000)
 	}
 
-	appender.waitUntilEmpty()
+	logger.Flush()
 
 	// Now check that each goroutine logged in order
 
@@ -121,10 +121,10 @@ func TestConcurrentLog(test *testing.T) {
 func TestNoRotation(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 1000, 10, false)
+	_, logger := setup(test, 1000, 10, false)
 	
 	logger.Logf(slogger.WARN, "This is under 1,000 characters and should not cause a log rotation")
-	appender.waitUntilEmpty()
+	logger.Flush()
 
 	assertNumLogFiles(test, 1)
 }
@@ -132,10 +132,10 @@ func TestNoRotation(test *testing.T) {
 func TestNoRotation2(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, -1, 10, false)
+	_, logger := setup(test, -1, 10, false)
 	
 	logger.Logf(slogger.WARN, "This should not cause a log rotation")
-	appender.waitUntilEmpty()
+	logger.Flush()
 
 	assertNumLogFiles(test, 1)
 }
@@ -143,18 +143,18 @@ func TestNoRotation2(test *testing.T) {
 func TestOldLogRemoval(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 10, 2, false)
+	_, logger := setup(test, 10, 2, false)
 
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	appender.waitUntilEmpty()
+	logger.Flush()
 	assertNumLogFiles(test, 2)
 
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	appender.waitUntilEmpty()
+	logger.Flush()
 	assertNumLogFiles(test, 3)
 
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	appender.waitUntilEmpty()
+	logger.Flush()
 	assertNumLogFiles(test, 3)
 }
 
@@ -171,18 +171,18 @@ func TestPreRotation(test *testing.T) {
 		test.Fatalf("Failed to close logfile: %v", err)
 	}
 
-	appender, _ := newAppenderAndLogger(test, 1000, 2, true)
-	appender.waitUntilEmpty()
+	_, logger := newAppenderAndLogger(test, 1000, 2, true)
+	logger.Flush()
 	assertNumLogFiles(test, 2)
 }
 
 func TestRotation(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 10, 10, false)
+	_, logger := setup(test, 10, 10, false)
 	
 	logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	appender.waitUntilEmpty()
+	logger.Flush()
 
 	assertNumLogFiles(test, 2)
 }
