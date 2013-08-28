@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package rolling_file_appender provides a slogger Appender that
+// supports log rotation.
+
 package rolling_file_appender
 
 import (
@@ -61,6 +64,11 @@ type RollingFileAppender struct {
 // that will be called when an error occurs.  It can set to nil if you
 // do not want to provide one.  The return value headerGenerator, if
 // not nil, is logged at the beginning of every log file.
+//
+// Note that after creating a RollingFileAppender with New(), you will
+// probably want to defer a call to RollingFileAppender's Close() (or
+// at least Flush()).  This ensures that in case of program exit
+// (normal or panicking) that any pending logs are logged.
 func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, errHandler func(error), headerGenerator func() []string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
