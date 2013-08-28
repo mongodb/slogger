@@ -212,7 +212,7 @@ func assertNumLogFiles(test *testing.T, expected_n int) {
 
 func createLogDir(test *testing.T) {
 	os.RemoveAll(rfaTestLogDir)
-	err := os.Mkdir(rfaTestLogDir, 0755)
+	err := os.Mkdir(rfaTestLogDir, 0777)
 
 	if err != nil {
 		test.Fatal("setup() failed to create directory: " + rfaTestLogDir)
