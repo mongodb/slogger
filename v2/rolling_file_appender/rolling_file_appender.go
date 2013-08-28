@@ -307,7 +307,11 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) (ok bool) {
 	
 	if err != nil {
 		self.errHandler(RenameError{oldFilename, newFilename, err})
-		file, err := os.OpenFile(oldFilename, os.O_RDWR, 0666)
+		file, err := os.OpenFile(
+			oldFilename,
+			os.O_WRONLY | os.O_APPEND,
+			0666,
+		)
 
 		if err == nil {
 			self.file = file
