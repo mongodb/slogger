@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
+	"sort"
 	"time"
 	"github.com/tolsen/slogger/v2"
 )
@@ -44,20 +46,21 @@ type RollingFileAppender struct {
 // current working directory) or an absolute path.  maxFileSize is the
 // approximate file size that will be allowed before the log file is
 // rotated.  Rotated log files will have suffix of the form
-// .YYYY-MM-DDTHH-MM-SS appended to them.  Set maxFileSize to a
-// non-positive number if you wish there to be no limit.
-// maxRotatedLogs specifies the maximum number of rotated logs allowed
-// before old logs are deleted.  If rotateIfExists is set to true and
-// a log file with the same filename already exists, then the current
-// one will be rotated.  If rotateIfExists is set to true and a log
-// file with the same filename already exists, then the current log
-// file will be appended to.  If a log file with the same filename
-// does not exist, then a new log file is created regardless of the
-// value of rotateIfExists.  As RotatingFileAppender is asynchronous,
-// an errHandler can be provided that will be called when an error
-// occurs.  It can set to nil if you do not want to provide one.  The
-// return value headerGenerator, if not nil, is logged at the
-// beginning of every log file.
+// .YYYY-MM-DDTHH-MM-SS or .YYYY-MM-DDTHH-MM-SS-N (where N is an
+// incrementing serial number used to resolve conflicts) appended to
+// them.  Set maxFileSize to a non-positive number if you wish there
+// to be no limit.  maxRotatedLogs specifies the maximum number of
+// rotated logs allowed before old logs are deleted.  If
+// rotateIfExists is set to true and a log file with the same filename
+// already exists, then the current one will be rotated.  If
+// rotateIfExists is set to true and a log file with the same filename
+// already exists, then the current log file will be appended to.  If
+// a log file with the same filename does not exist, then a new log
+// file is created regardless of the value of rotateIfExists.  As
+// RotatingFileAppender is asynchronous, an errHandler can be provided
+// that will be called when an error occurs.  It can set to nil if you
+// do not want to provide one.  The return value headerGenerator, if
+// not nil, is logged at the beginning of every log file.
 func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, errHandler func(error), headerGenerator func() []string) (*RollingFileAppender, error) {
 	if errHandler == nil {
 		errHandler = func(err error) { }
@@ -149,21 +152,23 @@ func internalWarningLog(messageFmt string, args ...interface{}) *slogger.Log {
 	return simpleLog("RollingFileAppender", slogger.WARN, 3, messageFmt, args)
 }
 
-func newRotatedFilename(baseFilename string, inc int) string {
-	now := time.Now()
-	now = now.Add(time.Duration(inc) * time.Second)
-	return rotatedFilename(baseFilename, now)
-}
-
-func rotatedFilename(baseFilename string, t time.Time) string {
-	return fmt.Sprintf("%s.%d-%02d-%02dT%02d-%02d-%02d",
+func rotatedFilename(baseFilename string, t time.Time, serial int) string {
+	filename := fmt.Sprintf(
+		"%s.%d-%02d-%02dT%02d-%02d-%02d",
 		baseFilename,
 		t.Year(),
 		t.Month(),
 		t.Day(),
 		t.Hour(),
 		t.Minute(),
-		t.Second())
+		t.Second(),
+	)
+
+	if serial > 0 {
+		filename = fmt.Sprintf("%s-%d", filename, serial)
+	}
+	
+	return filename
 }
 
 func simpleLog(prefix string, level slogger.Level, callerSkip int, messageFmt string, args []interface{}) *slogger.Log {
@@ -250,80 +255,51 @@ func (self *RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) 
 }
 
 func (self *RollingFileAppender) removeMaxRotatedLogs() {
-	timeStrs, err := self.rotatedTimeStrs()
+	rotationTimes, err := self.rotationTimeSlice()
 
 	if err != nil {
 		self.errHandler(MinorRotationError{err})
 		return
 	}
 
-	timeStrsLen := len(timeStrs)
 	// return if we're under the limit
-	if timeStrsLen <= self.MaxRotatedLogs {
+	if len(rotationTimes) <= self.MaxRotatedLogs {
 		return
 	}
 
-	// find oldest Time
-	foundValidTime := false
-	var oldestTime time.Time
-	for _, timeStr := range timeStrs {
-		rotatedTime, err := time.Parse("2006-01-02T15-04-05", timeStr)
-
-		if err == nil && (!foundValidTime || rotatedTime.Before(oldestTime)) {
-			foundValidTime = true
-			oldestTime = rotatedTime
+	// otherwise remove enough of the oldest logfiles to bring us
+	// under the limit
+	sort.Sort(rotationTimes)
+	for _, rotationTime := range rotationTimes[self.MaxRotatedLogs:] {
+		err = os.Remove(rotationTime.Filename)
+		if err != nil {
+			self.errHandler(MinorRotationError{err})
+			return
 		}
 	}
-
-	if !foundValidTime {
-		// weird, we didn't find any files
-		return
-	}
-
-	// remove file with oldest Time
-	oldestFilename := rotatedFilename(self.absPath, oldestTime)
-	err = os.Remove(oldestFilename)
-	if err != nil {
-		self.errHandler(MinorRotationError{err})
-		return
-	}
-
-	// return if successful removal would have put us under the limit
-	if timeStrsLen <= (self.MaxRotatedLogs + 1) {
-		return
-	}
-
-	// Now we are in a weird case where we were over the limit by more
-	// than one.  Rather than complicate the above code to find the N
-	// oldest times we will just recursively call ourselves, but only
-	// if we have made any progess to avoid going into an infinite
-	// loop.
-
-	// check if we've made progress
-	timeStrs, err = self.rotatedTimeStrs()
-	if err != nil {
-		self.errHandler(MinorRotationError{err})
-		return
-	}
-	if len(timeStrs) >= timeStrsLen {
-		return
-	}
-
-	// recursively call ourself if there's more to do
-	if len(timeStrs) > self.MaxRotatedLogs {
-		self.removeMaxRotatedLogs()
-		return // explicit return added in hopes of Tail-Call Optimization
-	}
-
 	return
 }
 
-func (self *RollingFileAppender) renameLogFile(oldFilename string, inc int) (ok bool) {
-	newFilename := newRotatedFilename(self.absPath, inc)
-	_, err := os.Stat(newFilename) // check if newFilename already exists
-	if err == nil {
-		// exists! try incrementing by 1 second
-		return self.renameLogFile(oldFilename, inc + 1)
+const MAX_ROTATE_SERIAL_NUM = 1000000000
+
+func (self *RollingFileAppender) renameLogFile(oldFilename string) (ok bool) {
+	now := time.Now()
+
+	var newFilename string
+	var err error
+	
+	for serial := 0; err == nil; serial++ {  // err == nil means file exists
+		if serial > MAX_ROTATE_SERIAL_NUM {
+			self.errHandler(
+				RenameError{
+					oldFilename,
+					newFilename,
+					fmt.Errorf("Reached max serial number: %d", MAX_ROTATE_SERIAL_NUM),
+				},
+			)
+		}
+		newFilename = rotatedFilename(self.absPath, now, serial)
+		_, err = os.Stat(newFilename) 
 	}
 		
 	err = os.Rename(oldFilename, newFilename)
@@ -356,7 +332,7 @@ func (self *RollingFileAppender) rotate() {
 	}
 
 	// rename old log
-	if !self.renameLogFile(self.absPath, 0) {
+	if !self.renameLogFile(self.absPath) {
 		return
 	}
 
@@ -376,31 +352,23 @@ func (self *RollingFileAppender) rotate() {
 	return
 }
 
-var rotatedTimeRegExp = regexp.MustCompile(`\.(\d+-\d\d-\d\dT\d\d-\d\d-\d\d)$`)
+func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) {
+	candidateFilenames, err := filepath.Glob(self.absPath + ".*")
 
-func (self *RollingFileAppender) rotatedTimeStrs() ([]string, error) {
-	logDirname := filepath.Dir(self.absPath)
-	logDir, err := os.Open(logDirname)
-	if err != nil {
-		return nil, err
-	}
-	defer logDir.Close()
-
-	var filenames []string
-	filenames, err = logDir.Readdirnames(-1)
 	if err != nil {
 		return nil, err
 	}
 
-	logTimeStrs := make([]string, 0, len(filenames))
-	for _, filename := range filenames {
-		match := rotatedTimeRegExp.FindStringSubmatch(filename)
-		if match != nil {
-			logTimeStrs = append(logTimeStrs, match[1])
+	rotationTimes := make(RotationTimeSlice, 0, len(candidateFilenames))
+
+	for _, candidateFilename := range candidateFilenames {
+		rotationTime, err := extractRotationTimeFromFilename(candidateFilename)
+		if err == nil {
+			rotationTimes = append(rotationTimes, rotationTime)
 		}
 	}
 
-	return logTimeStrs, nil
+	return rotationTimes, nil
 }
 
 func (self *RollingFileAppender) waitUntilEmpty() {
@@ -508,3 +476,68 @@ func IsWriteError(err error) bool {
 	_, ok := err.(WriteError)
 	return ok
 }
+
+type RotationTime struct {
+	Time time.Time
+	Serial int
+	Filename string
+}
+
+type RotationTimeSlice [](*RotationTime)
+
+func (self RotationTimeSlice) Len() int {
+	return len(self)
+}
+
+func (self RotationTimeSlice) Less(i, j int) bool {
+	if self[i].Time == self[j].Time {
+		return self[i].Serial < self[j].Serial
+	}
+
+	return self[i].Time.Before(self[j].Time)
+}
+
+func (self RotationTimeSlice) Swap(i, j int) {
+	self[i], self[j] = self[j], self[i]
+}
+
+var rotatedTimeRegExp = regexp.MustCompile(`\.(\d+-\d\d-\d\dT\d\d-\d\d-\d\d)(-(\d+))?$`)
+
+func extractRotationTimeFromFilename(filename string) (*RotationTime, error) {
+	match := rotatedTimeRegExp.FindStringSubmatch(filename)
+
+	if match == nil {
+		return nil, fmt.Errorf("Filename does not match rotation time format: %s", filename)
+	}
+	
+	rotatedTime, err := time.Parse("2006-01-02T15-04-05", match[1])
+	if err != nil {
+		return nil, fmt.Errorf(
+			"Time %s in filename %s did not parse: %v",
+			match[1],
+			filename,
+			err,
+		)
+	}
+
+	var serial int
+	if match[3] != "" {
+		serial, err = strconv.Atoi(match[3])
+
+		if err != nil {
+			return nil, fmt.Errorf(
+				"Could not parse serial number in filename %s: %v",
+				filename,
+				err,
+			)
+		}
+	}
+
+	return &RotationTime{rotatedTime, serial, filename}, nil
+}
+		
+				
+	
+	
+			
+	
