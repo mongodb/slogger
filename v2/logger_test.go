@@ -278,3 +278,65 @@ func TestStacktracing(test *testing.T) {
 		test.Errorf("Expected a log message when adding -4.")
 	}
 }
+
+func TestSuppression(t *testing.T) {
+	logBuffer := new(bytes.Buffer)
+	logger := &Logger{
+		Prefix:    "slogger.logger_test",
+		Appenders: []Appender{NewStringAppender(logBuffer)},
+	}
+
+	assertDisabledLogSuppressionWorks(t, logger, logBuffer)
+	assertEnabledLogSuppressionWorks(t, logger, logBuffer)
+	assertDisabledLogSuppressionWorks(t, logger, logBuffer)
+	assertEnabledLogSuppressionWorks(t, logger, logBuffer)
+}
+
+func assertDisabledLogSuppressionWorks(t *testing.T, logger *Logger, logBuffer *bytes.Buffer) {
+	logger.DisableLogSuppression()
+	assertLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
+	assertLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
+	assertLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
+	assertLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
+}
+
+func assertEnabledLogSuppressionWorks(t *testing.T, logger *Logger, logBuffer *bytes.Buffer) {
+	logger.EnableLogSuppression(100)
+	assertLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
+	assertLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
+	denyLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
+	denyLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
+}
+
+func assertLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) {
+	origOutput, _ := ioutil.ReadAll(logBuffer)
+	origBufSize := len(origOutput)
+	logit()
+	newOutput, _ := ioutil.ReadAll(logBuffer)
+	newBufSize := len(newOutput)
+
+	if newBufSize <= origBufSize {
+		t.Errorf("Logging should have occurred")
+	}
+}
+
+func denyLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) {
+	origOutput, _ := ioutil.ReadAll(logBuffer)
+	origBufSize := len(origOutput)
+	logit()
+	newOutput, _ := ioutil.ReadAll(logBuffer)
+	newBufSize := len(newOutput)
+
+	if newBufSize != origBufSize {
+		t.Errorf("Logging should not have occurred")
+	}
+}
+
+func logHelloMongoDB(logger *Logger) {
+	logger.logf(WARN, "Hello MongoDB")
+}
+
+func logHelloWorld(logger *Logger) {
+	logger.logf(WARN, "Hello World")
+}
+

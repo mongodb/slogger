@@ -17,6 +17,7 @@ package slogger
 import (
 	"errors"
 	"fmt"
+	"github.com/tolsen/slogger/v2/queued_set"
 	"runtime"
 	"strings"
 	"time"
@@ -36,10 +37,25 @@ func (self *Log) Message() string {
 	return fmt.Sprintf(self.MessageFmt, self.Args...)
 }
 
+// for use as a cache key
+func (self *Log) stringWithoutTime() string {
+	return fmt.Sprintf(
+		"%s %v %s %d %s",
+		self.Prefix,
+		self.Level.Type(),
+		self.Filename,
+		self.Line,
+		self.Message(),
+	)
+}	
+	
+
 type Logger struct {
 	Prefix    string
 	Appenders []Appender
 	StripDirs int
+	cache *queued_set.QueuedSet
+	suppressionEnabled bool
 }
 
 // Log a message and a level to a logger instance. This returns a
@@ -47,6 +63,17 @@ type Logger struct {
 // Appender (nil errors included).
 func (self *Logger) Logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	return self.logf(level, messageFmt, args...)
+}
+
+func (self *Logger) DisableLogSuppression() {
+	self.suppressionEnabled = false
+	return
+}
+
+func (self *Logger) EnableLogSuppression(historyCapacity int) {
+	self.cache = queued_set.New(historyCapacity)
+	self.suppressionEnabled = true
+	return
 }
 
 // Log and return a formatted error string.
@@ -67,6 +94,10 @@ func (self *Logger) Flush() (errors []error) {
 		errors = append(errors, appender.Flush())
 	}
 	return
+}
+
+func (self *Logger) IsSuppressionEnabled() bool {
+	return self.suppressionEnabled
 }
 
 // Stackf is designed to work in tandem with `NewStackError`. This
@@ -132,13 +163,12 @@ func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*
 		Args:       args,
 	}
 
-	// cache disabled for now as not yet used -Tim
-	//	Cache.Add(log)
-
-	for _, appender := range self.Appenders {
-		if err := appender.Append(log); err != nil {
-			error := fmt.Errorf("Error appending. Appender: %T Error: %v", appender, err)
-			errors = append(errors, error)
+	if !self.suppressionEnabled || self.cache.Add(log.stringWithoutTime()) {
+		for _, appender := range self.Appenders {
+			if err := appender.Append(log); err != nil {
+				error := fmt.Errorf("Error appending. Appender: %T Error: %v", appender, err)
+				errors = append(errors, error)
+			}
 		}
 	}
 
