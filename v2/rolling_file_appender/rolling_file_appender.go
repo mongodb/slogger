@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"sort"
 	"time"
@@ -152,24 +151,6 @@ func rotatedFilename(baseFilename string, t time.Time, serial int) string {
 	return filename
 }
 
-func simpleLog(prefix string, level slogger.Level, callerSkip int, messageFmt string, args []interface{}) *slogger.Log {
-	_, file, line, ok := runtime.Caller(callerSkip)
-	if !ok {
-		file = "UNKNOWN_FILE"
-		line = -1
-	}
-	
-	return &slogger.Log {
-		Prefix: prefix,
-		Level: level,
-		Filename: file,
-		Line: line,
-		Timestamp: time.Now(),
-		MessageFmt: messageFmt,
-		Args: args,
-	}
-}
-
 func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytesWritten int, err error) {
 	if self.file == nil {
 		return 0, NoFileError{}
@@ -188,7 +169,7 @@ func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytes
 func (self *RollingFileAppender) logHeader() error {
 	header := self.headerGenerator()
 	for _, line := range header {
-		log := simpleLog("header", slogger.INFO, 3, line, []interface{}{})
+		log := slogger.SimpleLog("header", slogger.INFO, 3, line, []interface{}{})
 
 		// do not count header as part of size towards rotation in
 		// order to prevent infinite rotation when max size is smaller

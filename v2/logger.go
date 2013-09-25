@@ -33,6 +33,24 @@ type Log struct {
 	Args       []interface{}
 }
 
+func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, args []interface{}) *Log {
+	_, file, line, ok := runtime.Caller(callerSkip)
+	if !ok {
+		file = "UNKNOWN_FILE"
+		line = -1
+	}
+	
+	return &Log {
+		Prefix: prefix,
+		Level: level,
+		Filename: file,
+		Line: line,
+		Timestamp: time.Now(),
+		MessageFmt: messageFmt,
+		Args: args,
+	}
+}
+
 func (self *Log) Message() string {
 	return fmt.Sprintf(self.MessageFmt, self.Args...)
 }
@@ -82,7 +100,7 @@ func (self *Logger) EnableLogSuppression(historyCapacity int) {
 // if whatIsExpected != whatIsReturned {
 //     return slogger.Errorf(slogger.WARN, "Unexpected return value. Expected: %v Received: %v",
 //         whatIsExpected, whatIsReturned)
-// }
+// }5
 //
 func (self *Logger) Errorf(level Level, messageFmt string, args ...interface{}) error {
 	log, _ := self.logf(level, messageFmt, args...)
