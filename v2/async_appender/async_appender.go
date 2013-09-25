@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package rolling_file_appender provides a slogger Appender that
-// supports log rotation.
+// Package async_appender provides a slogger Appender that supports
+// asynchronous logging
 
 package async_appender
 
