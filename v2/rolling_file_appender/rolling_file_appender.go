@@ -29,18 +29,12 @@ import (
 	"github.com/tolsen/slogger/v2"
 )
 
-// Do not set this to zero or deadlocks might occur
-const APPEND_CHANNEL_SIZE = 4096
-
 type RollingFileAppender struct {
 	MaxFileSize int64
 	MaxRotatedLogs int
 	file *os.File
 	absPath string
 	curFileSize int64
-	appendCh chan *slogger.Log
-	syncCh chan (chan bool)
-	errHandler func(error)
 	headerGenerator func() []string
 }
 
@@ -69,11 +63,7 @@ type RollingFileAppender struct {
 // probably want to defer a call to RollingFileAppender's Close() (or
 // at least Flush()).  This ensures that in case of program exit
 // (normal or panicking) that any pending logs are logged.
-func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, errHandler func(error), headerGenerator func() []string) (*RollingFileAppender, error) {
-	if errHandler == nil {
-		errHandler = func(err error) { }
-	}
-
+func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
 	if headerGenerator == nil {
 		headerGenerator = func() []string {
 			return []string{}
@@ -89,16 +79,13 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 		MaxFileSize: maxFileSize,
 		MaxRotatedLogs: maxRotatedLogs,
 		absPath: absPath,
-		appendCh: make(chan *slogger.Log, APPEND_CHANNEL_SIZE),
-		syncCh: make(chan (chan bool)),
-		errHandler: errHandler,
 		headerGenerator: headerGenerator,
 	}
 
 	
 	fileInfo, err := os.Stat(absPath)  
 	if err == nil && rotateIfExists {  // err == nil means file exists
-		appender.rotate()
+		return appender, appender.rotate()
 	} else {
 		// we're either creating a new log file or appending to the current one
 		appender.file, err = os.OpenFile(
@@ -114,24 +101,25 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 			appender.curFileSize = fileInfo.Size()
 		}
 		
-		appender.logHeader()
+		return appender, appender.logHeader()
 	}
-
-	go appender.listenForAppends()
-	return appender, nil 
 }
 
-func (self RollingFileAppender) Append(log *slogger.Log) error {
-	select {
-	case self.appendCh <- log:
-		// nothing else to do
-	default:
-		// channel is full. log a warning
-		self.appendCh <- fullWarningLog()
-		self.appendCh <- log
+func (self *RollingFileAppender) Append(log *slogger.Log) error {
+	n, err := self.appendSansSizeTracking(log)
+	self.curFileSize += int64(n)
+	
+	if err != nil {
+		return err
 	}
+	
+	if self.MaxFileSize > 0 && self.curFileSize > self.MaxFileSize {
+		return self.rotate()
+	}
+	
 	return nil
 }
+
 
 func (self *RollingFileAppender) Close() error {
 	err := self.Flush()
@@ -142,34 +130,7 @@ func (self *RollingFileAppender) Close() error {
 }
 
 func (self *RollingFileAppender) Flush() error {
-	replyCh := make(chan bool)
-	self.syncCh <- replyCh
-	for !(<- replyCh) {
-		self.syncCh <- replyCh
-	}
-	return nil
-}
-
-// These are commented out until I determine as to whether they are thread-safe -Tim
-
-// func (self RollingFileAppender) SetErrHandler(errHandler func(error)) {
-// 	self.errHandler = errHandler
-// }
-
-// func (self RollingFileAppender) SetHeaderGenerator(headerGenerator func() string) {
-// 	self.headerGenerator = headerGenerator
-// 	self.logHeader()
-// }
-
-func fullWarningLog() *slogger.Log {
-	return internalWarningLog(
-		"appendCh is full. You may want to increase APPEND_CHANNEL_SIZE (currently %d).",
-		APPEND_CHANNEL_SIZE,
-	)
-}
-
-func internalWarningLog(messageFmt string, args ...interface{}) *slogger.Log {
-	return simpleLog("RollingFileAppender", slogger.WARN, 3, messageFmt, args)
+	return self.file.Sync()
 }
 
 func rotatedFilename(baseFilename string, t time.Time, serial int) string {
@@ -209,35 +170,22 @@ func simpleLog(prefix string, level slogger.Level, callerSkip int, messageFmt st
 	}
 }
 
-// listenForAppends consumes appendCh and syncCh.  It consumes Logs
-// coming down the appendCh, flushing to disk when necessary and the
-// appendCh is empty.  It will reply to syncCh messages (via the given
-// syncReplyCh) after flushing (or if nothing has ever been logged),
-// increasing the chance that it will be able to reply true.
-func (self *RollingFileAppender) listenForAppends() {
-	needsSync := false
-	for {
-		if needsSync {
-			select {
-			case log := <- self.appendCh:
-				self.reallyAppend(log, true)
-			default:
-				self.file.Sync()
-				needsSync = false
-			}
-		} else {
-			select {
-			case log := <- self.appendCh:
-				self.reallyAppend(log, true)
-				needsSync = true
-			case syncReplyCh := <- self.syncCh:
-				syncReplyCh <- (len(self.appendCh) <= 0)
-			}
-		}
+func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytesWritten int, err error) {
+	if self.file == nil {
+		return 0, NoFileError{}
 	}
-}
+	
+	msg := slogger.FormatLog(log)
+	bytesWritten, err = self.file.WriteString(msg)
 
-func (self *RollingFileAppender) logHeader() {
+	if err != nil {
+		err = WriteError{self.absPath, err}
+	}
+
+	return
+}	
+
+func (self *RollingFileAppender) logHeader() error {
 	header := self.headerGenerator()
 	for _, line := range header {
 		log := simpleLog("header", slogger.INFO, 3, line, []interface{}{})
@@ -245,64 +193,42 @@ func (self *RollingFileAppender) logHeader() {
 		// do not count header as part of size towards rotation in
 		// order to prevent infinite rotation when max size is smaller
 		// than header
-		self.reallyAppend(log, false)
-	}
-}
-
-func (self *RollingFileAppender) reallyAppend(log *slogger.Log, trackSize bool) {
-	if self.file == nil {
-		self.errHandler(NoFileError{})
-		return
-	}
-	
-	msg := slogger.FormatLog(log)
-
-	n, err := self.file.WriteString(msg)
-
-	if err != nil {
-		self.errHandler(WriteError{self.absPath, err})
-		return
-	}
-
-	if trackSize && self.MaxFileSize > 0 {
-		self.curFileSize += int64(n)
-
-		if self.curFileSize > self.MaxFileSize {
-			self.rotate()
+		_, err := self.appendSansSizeTracking(log)
+		if err != nil {
+			return err
 		}
 	}
-	return
+
+	return nil
 }
 
-func (self *RollingFileAppender) removeMaxRotatedLogs() {
+
+func (self *RollingFileAppender) removeMaxRotatedLogs() error {
 	rotationTimes, err := self.rotationTimeSlice()
 
 	if err != nil {
-		self.errHandler(MinorRotationError{err})
-		return
+		return MinorRotationError{err}
 	}
 
 	// return if we're under the limit
 	if len(rotationTimes) <= self.MaxRotatedLogs {
-		return
+		return nil
 	}
 
 	// otherwise remove enough of the oldest logfiles to bring us
 	// under the limit
 	sort.Sort(rotationTimes)
 	for _, rotationTime := range rotationTimes[self.MaxRotatedLogs:] {
-		err = os.Remove(rotationTime.Filename)
-		if err != nil {
-			self.errHandler(MinorRotationError{err})
-			return
+		if err = os.Remove(rotationTime.Filename); err != nil {
+			return MinorRotationError{err}
 		}
 	}
-	return
+	return nil
 }
 
 const MAX_ROTATE_SERIAL_NUM = 1000000000
 
-func (self *RollingFileAppender) renameLogFile(oldFilename string) (ok bool) {
+func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 	now := time.Now()
 
 	var newFilename string
@@ -310,13 +236,11 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) (ok bool) {
 	
 	for serial := 0; err == nil; serial++ {  // err == nil means file exists
 		if serial > MAX_ROTATE_SERIAL_NUM {
-			self.errHandler(
-				RenameError{
-					oldFilename,
-					newFilename,
-					fmt.Errorf("Reached max serial number: %d", MAX_ROTATE_SERIAL_NUM),
-				},
-			)
+			return RenameError{
+				oldFilename,
+				newFilename,
+				fmt.Errorf("Reached max serial number: %d", MAX_ROTATE_SERIAL_NUM),
+			}
 		}
 		newFilename = rotatedFilename(self.absPath, now, serial)
 		_, err = os.Stat(newFilename) 
@@ -324,56 +248,40 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) (ok bool) {
 		
 	err = os.Rename(oldFilename, newFilename)
 
-	
 	if err != nil {
-		self.errHandler(RenameError{oldFilename, newFilename, err})
-		file, err := os.OpenFile(
-			oldFilename,
-			os.O_WRONLY | os.O_APPEND,
-			0666,
-		)
-
-		if err == nil {
-			self.file = file
-		} else {
-			self.curFileSize = 0
-			self.file = nil
-			self.errHandler(OpenError{oldFilename, err})
-		}
-		return false
+		return RenameError{oldFilename, newFilename, err}
 	}
-	self.curFileSize = 0
-	return true
+	return nil
 }
 
 
-func (self *RollingFileAppender) rotate() {
+func (self *RollingFileAppender) rotate() error {
+	// rename old log
+	if err := self.renameLogFile(self.absPath); err != nil {
+		return err
+	}
+
 	// close current log if we have one open
 	if self.file != nil {
 		if err := self.file.Close(); err != nil {
-			self.errHandler(CloseError{self.absPath, err})
+			return CloseError{self.absPath, err}
 		}
 	}
-
-	// rename old log
-	if !self.renameLogFile(self.absPath) {
-		return
-	}
-
-	// remove really old logs
-	self.removeMaxRotatedLogs()
+	self.curFileSize = 0
 
 	// create new log
 	file, err := os.Create(self.absPath)
 	if err != nil {
 		self.file = nil
-		self.errHandler(OpenError{self.absPath, err})
-		return
+		return OpenError{self.absPath, err}
 	}
-
 	self.file = file
 	self.logHeader()
-	return
+
+	// remove really old logs
+	self.removeMaxRotatedLogs()
+
+	return nil
 }
 
 func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) {
