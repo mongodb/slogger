@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 	"github.com/tolsen/slogger/v2"
+	. "github.com/tolsen/slogger/v2/test_util"
 )
 
 const rfaTestLogDir = "log"
@@ -31,8 +32,8 @@ func TestLog(test *testing.T) {
 	_, logger := setup(test, 1000, 10, false)
 
 	_, errs := logger.Logf(slogger.WARN, "This is a log message")
-	assertNoErrors(test, errs)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 
 	assertCurrentLogContains(test, "This is a log message")
 }
@@ -43,8 +44,8 @@ func TestNoRotation(test *testing.T) {
 	_, logger := setup(test, 1000, 10, false)
 
 	_, errs := logger.Logf(slogger.WARN, "This is under 1,000 characters and should not cause a log rotation")
-	assertNoErrors(test, errs)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 
 	assertNumLogFiles(test, 1)
 }
@@ -55,8 +56,8 @@ func TestNoRotation2(test *testing.T) {
 	_, logger := setup(test, -1, 10, false)
 
 	_, errs := logger.Logf(slogger.WARN, "This should not cause a log rotation")
-	assertNoErrors(test, errs)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 
 	assertNumLogFiles(test, 1)
 }
@@ -67,18 +68,18 @@ func TestOldLogRemoval(test *testing.T) {
 	_, logger := setup(test, 10, 2, false)
 
 	_, errs := logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	assertNoErrors(test, errs)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 2)
 
 	_, errs = logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")	
-	assertNoErrors(test, errs)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 3)
 
 	_, errs = logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	assertNoErrors(test, errs)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 3)
 }
 
@@ -96,7 +97,7 @@ func TestPreRotation(test *testing.T) {
 	}
 
 	_, logger := newAppenderAndLogger(test, 1000, 2, true)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 2)
 }
 
@@ -106,8 +107,8 @@ func TestRotation(test *testing.T) {
 	_, logger := setup(test, 10, 10, false)
 
 	_, errs := logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
-	assertNoErrors(test, errs)
-	assertNoErrors(test, logger.Flush())
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 
 	assertNumLogFiles(test, 2)
 }
@@ -117,12 +118,6 @@ func assertCurrentLogContains(test *testing.T, expected string) {
 
 	if !strings.Contains(actual, expected) {
 		test.Errorf("Log contains: \n%s\ninstead of\n%s", actual, expected)
-	}
-}
-
-func assertNoErrors(test *testing.T, errs []error) {
-	if len(errs) != 0 {
-		test.Errorf("Expected to be empty: %v", errs)
 	}
 }
 
