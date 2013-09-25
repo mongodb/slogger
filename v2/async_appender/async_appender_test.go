@@ -23,15 +23,18 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"github.com/tolsen/slogger/v2"
+	. "github.com/tolsen/slogger/v2/test_util"
 )
 
 func TestLog(test *testing.T) {
 	appender, logger := setup(test)
 
-	logger.Logf(slogger.WARN, "This is a log message")
-	logger.Flush()
+	_, errs := logger.Logf(slogger.WARN, "This is a log message")
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
 
 	assertCurrentLogContains(test, "This is a log message", appender)
 }
@@ -41,13 +44,17 @@ func TestConcurrentLog(test *testing.T) {
 
 	appender, logger := setup(test)
 
+	wg := &sync.WaitGroup{}
 	// Have 10 goroutines log 1000 lines each
 	for i := 0; i < 10; i++ {
 		prefix := fmt.Sprint("GO", i)
-		go logSomeLines(logger, prefix, 1000)
+		wg.Add(1)
+		go logSomeLines(test, wg, logger, prefix, 1000)
 	}
 
-	logger.Flush()
+	wg.Wait()
+
+	AssertNoErrors(test, logger.Flush())
 
 	// Now check that each goroutine logged in order
 
@@ -121,10 +128,15 @@ func assertCurrentLogContains(test *testing.T, expected string, appender *AsyncA
 	}
 }
 
-func logSomeLines(logger *slogger.Logger, prefix string, numLines int) {
+func logSomeLines(test *testing.T, waitGroup *sync.WaitGroup, logger *slogger.Logger, prefix string, numLines int) {
 	for i := 0; i < numLines; i++ {
-		logger.Logf(slogger.WARN, "%s %d", prefix, i)
+		_, errs := logger.Logf(slogger.WARN, "%s %d", prefix, i)
+		if len(errs) != 0 {
+			fmt.Printf("ERRORS WHILE LOGGING: %v\n", errs)
+		}
+		AssertNoErrors(test, errs)
 	}
+	waitGroup.Done()
 }
 
 func newAppenderAndLogger(test *testing.T) (appender *AsyncAppender, logger *slogger.Logger) {
