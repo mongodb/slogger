@@ -91,7 +91,9 @@ func (self *Logger) Errorf(level Level, messageFmt string, args ...interface{}) 
 
 func (self *Logger) Flush() (errors []error) {
 	for _, appender := range self.Appenders {
-		errors = append(errors, appender.Flush())
+		if err := appender.Flush(); err != nil {
+			errors = append(errors, err)
+		}
 	}
 	return
 }
