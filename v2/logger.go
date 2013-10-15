@@ -31,6 +31,7 @@ type Log struct {
 	Timestamp  time.Time
 	MessageFmt string
 	Args       []interface{}
+	Context    *Context
 }
 
 func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, args []interface{}) *Log {
@@ -39,20 +40,28 @@ func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, ar
 		file = "UNKNOWN_FILE"
 		line = -1
 	}
-	
-	return &Log {
-		Prefix: prefix,
-		Level: level,
-		Filename: file,
-		Line: line,
-		Timestamp: time.Now(),
+
+	context, remainingArgs := extractContext(args)
+
+	return &Log{
+		Prefix:     prefix,
+		Level:      level,
+		Filename:   file,
+		Line:       line,
+		Timestamp:  time.Now(),
 		MessageFmt: messageFmt,
-		Args: args,
+		Args:       remainingArgs,
+		Context:    context,
 	}
 }
 
 func (self *Log) Message() string {
-	return fmt.Sprintf(self.MessageFmt, self.Args...)
+	messageFmt := self.MessageFmt
+	if self.Context != nil {
+		messageFmt = self.Context.interpolateString(self.MessageFmt)
+	}
+
+	return fmt.Sprintf(messageFmt, self.Args...)
 }
 
 // for use as a cache key
@@ -65,14 +74,13 @@ func (self *Log) stringWithoutTime() string {
 		self.Line,
 		self.Message(),
 	)
-}	
-	
+}
 
 type Logger struct {
-	Prefix    string
-	Appenders []Appender
-	StripDirs int
-	cache *queued_set.QueuedSet
+	Prefix             string
+	Appenders          []Appender
+	StripDirs          int
+	cache              *queued_set.QueuedSet
 	suppressionEnabled bool
 }
 
@@ -129,13 +137,9 @@ func (self *Logger) Stackf(level Level, stackErr error, messageFmt string, args 
 	return self.logf(level, messageFmt, args...)
 }
 
-
-
-
 var ignoredFileNames = []string{"logger.go"}
 
-
-// Add a file to the list of file names that slogger will skip when it identifies the source 
+// Add a file to the list of file names that slogger will skip when it identifies the source
 // of a message.  This is useful if you have a logging library built on top of slogger.
 // If you IgnoreThisFilenameToo(...) on the files of that library, logging messages
 // will be marked as coming from your code that calls your library, rather than from your library.
@@ -145,7 +149,7 @@ func IgnoreThisFilenameToo(fn string) {
 
 func containsAnyIgnoredFilename(s string) bool {
 	for _, ign := range ignoredFileNames {
-		if strings.Contains(s, ign)  {
+		if strings.Contains(s, ign) {
 			return true
 		}
 	}
@@ -154,24 +158,44 @@ func containsAnyIgnoredFilename(s string) bool {
 
 func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 	for skip := 0; skip < 100; skip++ {
-		pc,file,line,ok := runtime.Caller(skip)
-		if !ok || !containsAnyIgnoredFilename(file)  {
-			return pc,file,line,ok
+		pc, file, line, ok := runtime.Caller(skip)
+		if !ok || !containsAnyIgnoredFilename(file) {
+			return pc, file, line, ok
 		}
 	}
 	return 0, "", 0, false
 }
 
+func extractContext(args []interface{}) (context *Context, remainingArgs []interface{}) {
+	if len(args) == 0 {
+		return nil, args
+	}
+
+	ctxt, ok := args[0].(Context)
+	if ok {
+		return &ctxt, args[1:len(args)]
+	}
+
+	ctxtp, ok := args[0].(*Context)
+	if ok {
+		return ctxtp, args[1:len(args)]
+	}
+
+	return nil, args
+}
+
+// accepts a Context or *Context as the first element of args
 func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	var errors []error
 
 	_, file, line, ok := nonSloggerCaller()
-//	_, file, line, ok := runtime.Caller(2+offset)
+	//	_, file, line, ok := runtime.Caller(2+offset)
 	if ok == false {
 		return nil, []error{fmt.Errorf("Failed to find the calling method.")}
 	}
 
 	file = stripDirectories(file, self.StripDirs)
+	context, remainingArgs := extractContext(args)
 
 	log := &Log{
 		Prefix:     self.Prefix,
@@ -180,7 +204,8 @@ func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*
 		Line:       line,
 		Timestamp:  time.Now(),
 		MessageFmt: messageFmt,
-		Args:       args,
+		Args:       remainingArgs,
+		Context:    context,
 	}
 
 	if !self.suppressionEnabled || self.cache.Add(log.stringWithoutTime()) {
@@ -215,14 +240,14 @@ var strToLevel map[string]Level
 var levelToStr []string
 
 func init() {
-	strToLevel = map[string]Level {
-		"off"     : OFF,
-		"debug"   : DEBUG,
-		"routine" : ROUTINE,
-		"info"    : INFO,
-		"warn"    : WARN,
-		"error"   : ERROR,
-		"doom"    : DOOM,
+	strToLevel = map[string]Level{
+		"off":     OFF,
+		"debug":   DEBUG,
+		"routine": ROUTINE,
+		"info":    INFO,
+		"warn":    WARN,
+		"error":   ERROR,
+		"doom":    DOOM,
 	}
 
 	levelToStr = make([]string, len(strToLevel))
@@ -230,10 +255,10 @@ func init() {
 		levelToStr[uint8(level)] = str
 	}
 }
-	
+
 func NewLevel(levelStr string) (Level, error) {
 	level, ok := strToLevel[strings.ToLower(levelStr)]
-	
+
 	if !ok {
 		err := UnknownLevelError{levelStr}
 		return OFF, err
@@ -305,4 +330,3 @@ type UnknownLevelError struct {
 func (self UnknownLevelError) Error() string {
 	return fmt.Sprintf("Unknown level: %s", self.levelStr)
 }
-	

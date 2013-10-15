@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -340,3 +341,74 @@ func logHelloWorld(logger *Logger) {
 	logger.logf(WARN, "Hello World")
 }
 
+func TestContext(t *testing.T) {
+	buf := new(bytes.Buffer)
+	logger := &Logger{
+		Prefix:    "TestContext",
+		Appenders: []Appender{NewStringAppender(buf)},
+	}
+
+	ctxt := NewContext()
+	ctxt.Add("foo", "bar")
+	ctxt.Add("biz", "baz")
+
+	if ctxt.Len() != 2 {
+		t.Fatalf("Expected len of ctxt (%v) to be 2, but was %d", ctxt, ctxt.Len())
+	}
+
+	ctxt.Remove("biz")
+	if ctxt.Len() != 1 {
+		t.Fatalf("Expected len of ctxt (%v) to be 1, but was %d", ctxt, ctxt.Len())
+	}
+
+	val, found := ctxt.Get("foo")
+
+	if !found {
+		t.Fatalf("Expected \"foo\" to be present in ctxt. ctxt: %v", ctxt)
+	}
+
+	if val != "bar" {
+		t.Fatalf("Expected ctxt.Get(\"foo\") == \"bar\" but was == \"%v\"", val)
+	}
+
+	_, found = ctxt.Get("biz")
+	if found {
+		t.Fatalf("Expected \"biz\" to not be in ctxt.  ctxt: %v", ctxt)
+	}
+
+	str := ctxt.interpolateString("Lassie {foo}ked at {foo}d")
+	if str != "Lassie barked at bard" {
+		t.Fatalf("Expected \"%s\" to be \"Lassie barked at bard\"", str)
+	}
+
+	logger.Logf(WARN, "%s {foo}ked at {biz}", ctxt, "Lassie")
+
+	loggedStr := buf.String()
+
+	if !strings.HasSuffix(loggedStr, "Lassie barked at <nil>\n\n") {
+		t.Fatalf("Expected \"%s\" to end with \"Lassie barked at <nil>\n\n\"", buf.String())
+	}
+}
+
+func TestExtractContext(t *testing.T) {
+	ctxt := NewContext()
+
+	ctxt2, remArgs := extractContext([]interface{}{ctxt, 1, 2})
+
+	if ctxt != ctxt2 {
+		t.Fatalf("expected %v == %v", ctxt, ctxt2)
+	}
+
+	if !reflect.DeepEqual(remArgs, []interface{}{1, 2}) {
+		t.Fatalf("expected %v to be DeepEqual to %v", remArgs, []interface{}{1, 2})
+	}
+
+	ctxt3, remArgs := extractContext([]interface{}{1, 2, 3})
+	if ctxt3 != nil {
+		t.Fatalf("expect %v to be nil", ctxt3)
+	}
+
+	if !reflect.DeepEqual(remArgs, []interface{}{1, 2, 3}) {
+		t.Fatalf("expected %v to be DeepEqual to %v", remArgs, []interface{}{1, 2, 3})
+	}
+}
