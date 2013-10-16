@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -334,11 +333,11 @@ func denyLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) {
 }
 
 func logHelloMongoDB(logger *Logger) {
-	logger.logf(WARN, "Hello MongoDB")
+	logger.logf(WARN, "Hello MongoDB", nil)
 }
 
 func logHelloWorld(logger *Logger) {
-	logger.logf(WARN, "Hello World")
+	logger.logf(WARN, "Hello World", nil)
 }
 
 func TestContext(t *testing.T) {
@@ -381,34 +380,11 @@ func TestContext(t *testing.T) {
 		t.Fatalf("Expected \"%s\" to be \"Lassie barked at bard\"", str)
 	}
 
-	logger.Logf(WARN, "%s {foo}ked at {biz}", ctxt, "Lassie")
+	logger.LogfWithContext(WARN, "%s {foo}ked at {biz}", ctxt, "Lassie")
 
 	loggedStr := buf.String()
 
 	if !strings.HasSuffix(loggedStr, "Lassie barked at <nil>\n\n") {
 		t.Fatalf("Expected \"%s\" to end with \"Lassie barked at <nil>\n\n\"", buf.String())
-	}
-}
-
-func TestExtractContext(t *testing.T) {
-	ctxt := NewContext()
-
-	ctxt2, remArgs := extractContext([]interface{}{ctxt, 1, 2})
-
-	if ctxt != ctxt2 {
-		t.Fatalf("expected %v == %v", ctxt, ctxt2)
-	}
-
-	if !reflect.DeepEqual(remArgs, []interface{}{1, 2}) {
-		t.Fatalf("expected %v to be DeepEqual to %v", remArgs, []interface{}{1, 2})
-	}
-
-	ctxt3, remArgs := extractContext([]interface{}{1, 2, 3})
-	if ctxt3 != nil {
-		t.Fatalf("expect %v to be nil", ctxt3)
-	}
-
-	if !reflect.DeepEqual(remArgs, []interface{}{1, 2, 3}) {
-		t.Fatalf("expected %v to be DeepEqual to %v", remArgs, []interface{}{1, 2, 3})
 	}
 }

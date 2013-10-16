@@ -41,8 +41,6 @@ func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, ar
 		line = -1
 	}
 
-	context, remainingArgs := extractContext(args)
-
 	return &Log{
 		Prefix:     prefix,
 		Level:      level,
@@ -50,8 +48,7 @@ func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, ar
 		Line:       line,
 		Timestamp:  time.Now(),
 		MessageFmt: messageFmt,
-		Args:       remainingArgs,
-		Context:    context,
+		Args:       args,
 	}
 }
 
@@ -88,7 +85,11 @@ type Logger struct {
 // pointer to a Log and a slice of errors that were gathered from every
 // Appender (nil errors included).
 func (self *Logger) Logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
-	return self.logf(level, messageFmt, args...)
+	return self.logf(level, messageFmt, nil, args...)
+}
+
+func (self *Logger) LogfWithContext(level Level, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
+	return self.logf(level, messageFmt, context, args...)
 }
 
 func (self *Logger) DisableLogSuppression() {
@@ -111,7 +112,11 @@ func (self *Logger) EnableLogSuppression(historyCapacity int) {
 // }5
 //
 func (self *Logger) Errorf(level Level, messageFmt string, args ...interface{}) error {
-	log, _ := self.logf(level, messageFmt, args...)
+	return self.ErrorfWithContext(level, messageFmt, nil, args...)
+}
+
+func (self *Logger) ErrorfWithContext(level Level, messageFmt string, context *Context, args ...interface{}) error {
+	log, _ := self.logf(level, messageFmt, context, args...)
 	return errors.New(log.Message())
 }
 
@@ -133,8 +138,12 @@ func (self *Logger) IsSuppressionEnabled() bool {
 // parameter. `stackErr` is expected to be of type StackError, but does
 // not have to be.
 func (self *Logger) Stackf(level Level, stackErr error, messageFmt string, args ...interface{}) (*Log, []error) {
+	return self.StackfWithContext(level, stackErr, messageFmt, nil, args...)
+}
+
+func (self *Logger) StackfWithContext(level Level, stackErr error, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	messageFmt = fmt.Sprintf("%v\n%v", messageFmt, stackErr.Error())
-	return self.logf(level, messageFmt, args...)
+	return self.logf(level, messageFmt, context, args...)
 }
 
 var ignoredFileNames = []string{"logger.go"}
@@ -166,26 +175,8 @@ func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 	return 0, "", 0, false
 }
 
-func extractContext(args []interface{}) (context *Context, remainingArgs []interface{}) {
-	if len(args) == 0 {
-		return nil, args
-	}
-
-	ctxt, ok := args[0].(Context)
-	if ok {
-		return &ctxt, args[1:len(args)]
-	}
-
-	ctxtp, ok := args[0].(*Context)
-	if ok {
-		return ctxtp, args[1:len(args)]
-	}
-
-	return nil, args
-}
-
 // accepts a Context or *Context as the first element of args
-func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
+func (self *Logger) logf(level Level, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	var errors []error
 
 	_, file, line, ok := nonSloggerCaller()
@@ -195,8 +186,6 @@ func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*
 	}
 
 	file = stripDirectories(file, self.StripDirs)
-	context, remainingArgs := extractContext(args)
-
 	log := &Log{
 		Prefix:     self.Prefix,
 		Level:      level,
@@ -204,7 +193,7 @@ func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*
 		Line:       line,
 		Timestamp:  time.Now(),
 		MessageFmt: messageFmt,
-		Args:       remainingArgs,
+		Args:       args,
 		Context:    context,
 	}
 
