@@ -93,8 +93,8 @@ func (self *Logger) LogfWithContext(level Level, messageFmt string, context *Con
 }
 
 func (self *Logger) DisableLogSuppression() {
-	self.cache = nil
 	self.suppressionEnabled = false
+	self.cache = nil
 	return
 }
 
