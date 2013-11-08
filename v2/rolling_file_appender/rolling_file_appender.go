@@ -19,21 +19,21 @@ package rolling_file_appender
 
 import (
 	"fmt"
+	"github.com/tolsen/slogger/v2"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"sort"
+	"strconv"
 	"time"
-	"github.com/tolsen/slogger/v2"
 )
 
 type RollingFileAppender struct {
-	MaxFileSize int64
-	MaxRotatedLogs int
-	file *os.File
-	absPath string
-	curFileSize int64
+	MaxFileSize     int64
+	MaxRotatedLogs  int
+	file            *os.File
+	absPath         string
+	curFileSize     int64
 	headerGenerator func() []string
 }
 
@@ -74,22 +74,21 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 		return nil, err
 	}
 
-	appender := &RollingFileAppender {
-		MaxFileSize: maxFileSize,
-		MaxRotatedLogs: maxRotatedLogs,
-		absPath: absPath,
+	appender := &RollingFileAppender{
+		MaxFileSize:     maxFileSize,
+		MaxRotatedLogs:  maxRotatedLogs,
+		absPath:         absPath,
 		headerGenerator: headerGenerator,
 	}
 
-	
-	fileInfo, err := os.Stat(absPath)  
-	if err == nil && rotateIfExists {  // err == nil means file exists
+	fileInfo, err := os.Stat(absPath)
+	if err == nil && rotateIfExists { // err == nil means file exists
 		return appender, appender.rotate()
 	} else {
 		// we're either creating a new log file or appending to the current one
 		appender.file, err = os.OpenFile(
 			absPath,
-			os.O_WRONLY | os.O_APPEND | os.O_CREATE,
+			os.O_WRONLY|os.O_APPEND|os.O_CREATE,
 			0666,
 		)
 		if err != nil {
@@ -99,7 +98,7 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 		if fileInfo != nil {
 			appender.curFileSize = fileInfo.Size()
 		}
-		
+
 		return appender, appender.logHeader()
 	}
 }
@@ -107,18 +106,17 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 func (self *RollingFileAppender) Append(log *slogger.Log) error {
 	n, err := self.appendSansSizeTracking(log)
 	self.curFileSize += int64(n)
-	
+
 	if err != nil {
 		return err
 	}
-	
+
 	if self.MaxFileSize > 0 && self.curFileSize > self.MaxFileSize {
 		return self.rotate()
 	}
-	
+
 	return nil
 }
-
 
 func (self *RollingFileAppender) Close() error {
 	err := self.Flush()
@@ -147,7 +145,7 @@ func rotatedFilename(baseFilename string, t time.Time, serial int) string {
 	if serial > 0 {
 		filename = fmt.Sprintf("%s-%d", filename, serial)
 	}
-	
+
 	return filename
 }
 
@@ -155,7 +153,7 @@ func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytes
 	if self.file == nil {
 		return 0, NoFileError{}
 	}
-	
+
 	msg := slogger.FormatLog(log)
 	bytesWritten, err = self.file.WriteString(msg)
 
@@ -164,12 +162,21 @@ func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytes
 	}
 
 	return
-}	
+}
 
 func (self *RollingFileAppender) logHeader() error {
 	header := self.headerGenerator()
 	for _, line := range header {
-		log := slogger.SimpleLog("header", slogger.INFO, 3, line, []interface{}{})
+
+		log := &slogger.Log{
+			Prefix:     "header",
+			Level:      slogger.INFO,
+			Filename:   "nil",
+			Line:       -1,
+			Timestamp:  time.Now(),
+			MessageFmt: line,
+			Args:       []interface{}{},
+		}
 
 		// do not count header as part of size towards rotation in
 		// order to prevent infinite rotation when max size is smaller
@@ -182,7 +189,6 @@ func (self *RollingFileAppender) logHeader() error {
 
 	return nil
 }
-
 
 func (self *RollingFileAppender) removeMaxRotatedLogs() error {
 	rotationTimes, err := self.rotationTimeSlice()
@@ -214,8 +220,8 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 
 	var newFilename string
 	var err error
-	
-	for serial := 0; err == nil; serial++ {  // err == nil means file exists
+
+	for serial := 0; err == nil; serial++ { // err == nil means file exists
 		if serial > MAX_ROTATE_SERIAL_NUM {
 			return RenameError{
 				oldFilename,
@@ -224,9 +230,9 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 			}
 		}
 		newFilename = rotatedFilename(self.absPath, now, serial)
-		_, err = os.Stat(newFilename) 
+		_, err = os.Stat(newFilename)
 	}
-		
+
 	err = os.Rename(oldFilename, newFilename)
 
 	if err != nil {
@@ -234,7 +240,6 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 	}
 	return nil
 }
-
 
 func (self *RollingFileAppender) rotate() error {
 	// rename old log
@@ -286,7 +291,7 @@ func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) 
 
 type CloseError struct {
 	Filename string
-	Err error
+	Err      error
 }
 
 func (self CloseError) Error() string {
@@ -307,7 +312,7 @@ type MinorRotationError struct {
 }
 
 func (self MinorRotationError) Error() string {
-	return("rolling_file_appender: minor error while rotating logs: " + self.Err.Error())
+	return ("rolling_file_appender: minor error while rotating logs: " + self.Err.Error())
 }
 
 func IsMinorRotationError(err error) bool {
@@ -315,7 +320,7 @@ func IsMinorRotationError(err error) bool {
 	return ok
 }
 
-type NoFileError struct {}
+type NoFileError struct{}
 
 func (NoFileError) Error() string {
 	return "rolling_file_appender: No log file to write to"
@@ -328,7 +333,7 @@ func IsNoFileError(err error) bool {
 
 type OpenError struct {
 	Filename string
-	Err error
+	Err      error
 }
 
 func (self OpenError) Error() string {
@@ -347,7 +352,7 @@ func IsOpenError(err error) bool {
 type RenameError struct {
 	OldFilename string
 	NewFilename string
-	Err error
+	Err         error
 }
 
 func (self RenameError) Error() string {
@@ -363,10 +368,10 @@ func IsRenameError(err error) bool {
 	_, ok := err.(RenameError)
 	return ok
 }
-	
+
 type WriteError struct {
 	Filename string
-	Err error
+	Err      error
 }
 
 func (self WriteError) Error() string {
@@ -383,8 +388,8 @@ func IsWriteError(err error) bool {
 }
 
 type RotationTime struct {
-	Time time.Time
-	Serial int
+	Time     time.Time
+	Serial   int
 	Filename string
 }
 
@@ -414,7 +419,7 @@ func extractRotationTimeFromFilename(filename string) (*RotationTime, error) {
 	if match == nil {
 		return nil, fmt.Errorf("Filename does not match rotation time format: %s", filename)
 	}
-	
+
 	rotatedTime, err := time.Parse("2006-01-02T15-04-05", match[1])
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -440,9 +445,3 @@ func extractRotationTimeFromFilename(filename string) (*RotationTime, error) {
 
 	return &RotationTime{rotatedTime, serial, filename}, nil
 }
-		
-				
-	
-	
-			
-	
