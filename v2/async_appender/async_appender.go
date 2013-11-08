@@ -17,29 +17,29 @@
 
 package async_appender
 
-import	"github.com/tolsen/slogger/v2"
+import "github.com/tolsen/slogger/v2"
 
 type AsyncAppender struct {
-	Appender slogger.Appender
-	appendCh chan *slogger.Log
-	flushCh chan (chan bool)
+	Appender   slogger.Appender
+	appendCh   chan *slogger.Log
+	flushCh    chan (chan bool)
 	errHandler func(error)
 }
 
 func New(appender slogger.Appender, channelCapacity int, errHandler func(error)) *AsyncAppender {
 	asyncAppender := &AsyncAppender{
-		Appender: appender,
-		appendCh: make(chan *slogger.Log, channelCapacity),
-		flushCh: make(chan (chan bool)),
+		Appender:   appender,
+		appendCh:   make(chan *slogger.Log, channelCapacity),
+		flushCh:    make(chan (chan bool)),
 		errHandler: errHandler,
 	}
 
 	go asyncAppender.listenForAppends()
-	
+
 	return asyncAppender
 }
 
-func (self AsyncAppender) Append(log *slogger.Log) error {
+func (self *AsyncAppender) Append(log *slogger.Log) error {
 	select {
 	case self.appendCh <- log:
 		// nothing else to do
@@ -54,7 +54,7 @@ func (self AsyncAppender) Append(log *slogger.Log) error {
 func (self *AsyncAppender) Flush() error {
 	replyCh := make(chan bool)
 	self.flushCh <- replyCh
-	for !(<- replyCh) {
+	for !(<-replyCh) {
 		self.flushCh <- replyCh
 	}
 	return nil
@@ -88,18 +88,18 @@ func (self *AsyncAppender) listenForAppends() {
 	for {
 		if needsFlush {
 			select {
-			case log := <- self.appendCh:
-				self.appendToSubAppender(log) 
+			case log := <-self.appendCh:
+				self.appendToSubAppender(log)
 			default:
 				self.Appender.Flush()
 				needsFlush = false
 			}
 		} else {
 			select {
-			case log := <- self.appendCh:
-				self.appendToSubAppender(log) 
+			case log := <-self.appendCh:
+				self.appendToSubAppender(log)
 				needsFlush = true
-			case flushReplyCh := <- self.flushCh:
+			case flushReplyCh := <-self.flushCh:
 				flushReplyCh <- (len(self.appendCh) <= 0)
 			}
 		}
