@@ -35,10 +35,10 @@ type Log struct {
 }
 
 func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, args ...interface{}) *Log {
-	return SimpleLogStrippingDirs(prefix, level, callerSkip, messageFmt, -1, args...)
+	return SimpleLogStrippingDirs(prefix, level, callerSkip, -1, messageFmt, args...)
 }
 
-func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, messageFmt string, numDirsToKeep int, args ...interface{}) *Log {
+func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, numDirsToKeep int, messageFmt string, args ...interface{}) *Log {
 	_, file, line, ok := runtime.Caller(callerSkip)
 	if !ok {
 		file = "UNKNOWN_FILE"
