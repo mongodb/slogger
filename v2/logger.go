@@ -34,11 +34,19 @@ type Log struct {
 	Context    *Context
 }
 
-func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, args []interface{}) *Log {
+func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, args ...interface{}) *Log {
+	return SimpleLogStrippingDirs(prefix, level, callerSkip, messageFmt, -1, args...)
+}
+
+func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, messageFmt string, numDirsToKeep int, args ...interface{}) *Log {
 	_, file, line, ok := runtime.Caller(callerSkip)
 	if !ok {
 		file = "UNKNOWN_FILE"
 		line = -1
+	}
+
+	if numDirsToKeep >= 0 {
+		file = stripDirectories(file, numDirsToKeep)
 	}
 
 	return &Log{

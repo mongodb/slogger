@@ -74,7 +74,7 @@ func (self *AsyncAppender) fullWarningLog() *slogger.Log {
 }
 
 func internalWarningLog(messageFmt string, args ...interface{}) *slogger.Log {
-	return slogger.SimpleLog("AsyncAppender", slogger.WARN, 3, messageFmt, args)
+	return slogger.SimpleLog("AsyncAppender", slogger.WARN, 3, messageFmt, args...)
 }
 
 // listenForAppends consumes appendCh and flushCh.  It consumes Logs
