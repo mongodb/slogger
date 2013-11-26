@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -292,6 +293,57 @@ func TestSuppression(t *testing.T) {
 	assertEnabledLogSuppressionWorks(t, logger, logBuffer)
 }
 
+func TestContext(t *testing.T) {
+	buf := new(bytes.Buffer)
+	logger := &Logger{
+		Prefix:    "TestContext",
+		Appenders: []Appender{NewStringAppender(buf)},
+	}
+
+	ctxt := NewContext()
+	ctxt.Add("foo", "bar")
+	ctxt.Add("biz", "baz")
+
+	if ctxt.Len() != 2 {
+		t.Fatalf("Expected len of ctxt (%v) to be 2, but was %d", ctxt, ctxt.Len())
+	}
+
+	assertUnorderedStringSlicesEqual(t, ctxt.Keys(), []string{"foo", "biz"})
+
+	ctxt.Remove("biz")
+	if ctxt.Len() != 1 {
+		t.Fatalf("Expected len of ctxt (%v) to be 1, but was %d", ctxt, ctxt.Len())
+	}
+	assertUnorderedStringSlicesEqual(t, ctxt.Keys(), []string{"foo"})
+	val, found := ctxt.Get("foo")
+
+	if !found {
+		t.Fatalf("Expected \"foo\" to be present in ctxt. ctxt: %v", ctxt)
+	}
+
+	if val != "bar" {
+		t.Fatalf("Expected ctxt.Get(\"foo\") == \"bar\" but was == \"%v\"", val)
+	}
+
+	_, found = ctxt.Get("biz")
+	if found {
+		t.Fatalf("Expected \"biz\" to not be in ctxt.  ctxt: %v", ctxt)
+	}
+
+	str := ctxt.interpolateString("Lassie {foo}ked at {foo}d")
+	if str != "Lassie barked at bard" {
+		t.Fatalf("Expected \"%s\" to be \"Lassie barked at bard\"", str)
+	}
+
+	logger.LogfWithContext(WARN, "%s {foo}ked at {biz}", ctxt, "Lassie")
+
+	loggedStr := buf.String()
+
+	if !strings.HasSuffix(loggedStr, "Lassie barked at <nil>\n\n") {
+		t.Fatalf("Expected \"%s\" to end with \"Lassie barked at <nil>\n\n\"", buf.String())
+	}
+}
+
 func assertDisabledLogSuppressionWorks(t *testing.T, logger *Logger, logBuffer *bytes.Buffer) {
 	logger.DisableLogSuppression()
 	assertLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
@@ -320,6 +372,24 @@ func assertLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) 
 	}
 }
 
+// this modifies the arguments!
+func assertUnorderedStringSlicesEqual(t *testing.T, slice1 []string, slice2 []string) {
+	if len(slice1) != len(slice2) {
+		t.Errorf("Expected slices to be equal! slice1: %v ; slice2: %v", slice1, slice2)
+		return
+	}
+
+	sort.StringSlice(slice1).Sort()
+	sort.StringSlice(slice2).Sort()
+
+	for i, str := range slice1 {
+		if str != slice2[i] {
+			t.Errorf("Expected slices to be equal! slice1: %v ; slice2: %v", slice1, slice2)
+			return
+		}
+	}
+}
+
 func denyLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) {
 	origOutput, _ := ioutil.ReadAll(logBuffer)
 	origBufSize := len(origOutput)
@@ -338,53 +408,4 @@ func logHelloMongoDB(logger *Logger) {
 
 func logHelloWorld(logger *Logger) {
 	logger.logf(WARN, "Hello World", nil)
-}
-
-func TestContext(t *testing.T) {
-	buf := new(bytes.Buffer)
-	logger := &Logger{
-		Prefix:    "TestContext",
-		Appenders: []Appender{NewStringAppender(buf)},
-	}
-
-	ctxt := NewContext()
-	ctxt.Add("foo", "bar")
-	ctxt.Add("biz", "baz")
-
-	if ctxt.Len() != 2 {
-		t.Fatalf("Expected len of ctxt (%v) to be 2, but was %d", ctxt, ctxt.Len())
-	}
-
-	ctxt.Remove("biz")
-	if ctxt.Len() != 1 {
-		t.Fatalf("Expected len of ctxt (%v) to be 1, but was %d", ctxt, ctxt.Len())
-	}
-
-	val, found := ctxt.Get("foo")
-
-	if !found {
-		t.Fatalf("Expected \"foo\" to be present in ctxt. ctxt: %v", ctxt)
-	}
-
-	if val != "bar" {
-		t.Fatalf("Expected ctxt.Get(\"foo\") == \"bar\" but was == \"%v\"", val)
-	}
-
-	_, found = ctxt.Get("biz")
-	if found {
-		t.Fatalf("Expected \"biz\" to not be in ctxt.  ctxt: %v", ctxt)
-	}
-
-	str := ctxt.interpolateString("Lassie {foo}ked at {foo}d")
-	if str != "Lassie barked at bard" {
-		t.Fatalf("Expected \"%s\" to be \"Lassie barked at bard\"", str)
-	}
-
-	logger.LogfWithContext(WARN, "%s {foo}ked at {biz}", ctxt, "Lassie")
-
-	loggedStr := buf.String()
-
-	if !strings.HasSuffix(loggedStr, "Lassie barked at <nil>\n\n") {
-		t.Fatalf("Expected \"%s\" to end with \"Lassie barked at <nil>\n\n\"", buf.String())
-	}
 }

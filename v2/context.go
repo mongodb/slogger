@@ -38,6 +38,16 @@ func (c *Context) Get(key string) (value interface{}, found bool) {
 	return
 }
 
+func (c *Context) Keys() []string {
+	keys := make([]string, len(c.fields))
+	i := 0
+	for k, _ := range c.fields {
+		keys[i] = k
+		i++
+	}
+	return keys
+}
+
 func (c *Context) Len() int {
 	return len(c.fields)
 }
