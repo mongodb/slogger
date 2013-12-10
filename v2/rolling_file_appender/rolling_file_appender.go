@@ -171,8 +171,8 @@ func (self *RollingFileAppender) logHeader() error {
 		log := &slogger.Log{
 			Prefix:     "header",
 			Level:      slogger.INFO,
-			Filename:   "nil",
-			Line:       -1,
+			Filename:   "",
+			Line:       0,
 			Timestamp:  time.Now(),
 			MessageFmt: line,
 			Args:       []interface{}{},
