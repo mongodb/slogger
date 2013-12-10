@@ -265,6 +265,10 @@ func NewLevel(levelStr string) (Level, error) {
 	return level, nil
 }
 
+func (self Level) String() string {
+	return self.Type()
+}
+
 func (self Level) Type() string {
 	if self >= topLevel {
 		return "off?"
