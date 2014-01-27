@@ -129,6 +129,7 @@ func TestFilter(test *testing.T) {
 	logger.Logf(WARN, "%d", 1)
 	logger.Logf(ERROR, "%d", 2)
 	logger.Logf(DEBUG, "%d", 3)
+	logger.Logf(TRACE, "%d", 4)
 
 	if counter.count != 2 {
 		test.Errorf("Expected two logs to pass through the filter to the appender. Received: %d",
@@ -136,7 +137,7 @@ func TestFilter(test *testing.T) {
 	}
 
 	cache := Cache.Copy()
-	if len(cache) != 4 {
+	if len(cache) != 5 {
 		test.Errorf("Expected all logs to be cached. Received: %d", len(cache))
 	}
 }
