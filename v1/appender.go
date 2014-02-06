@@ -22,13 +22,13 @@ func FormatLog(log *Log) string {
 		log.Message())
 }
 
-// StringWriter is implemented by *os.File.
-type StringWriter interface {
-	WriteString(s string) (ret int, err error)
+type WriteStringer interface {
+	WriteString(str string) (int, error)
 }
 
+// WriteStringer is implemented by *os.File.
 type FileAppender struct {
-	StringWriter
+	WriteStringer
 }
 
 func (self FileAppender) Append(log *Log) error {
