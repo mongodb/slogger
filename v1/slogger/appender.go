@@ -22,8 +22,13 @@ func FormatLog(log *Log) string {
 		log.Message())
 }
 
+type WriteStringer interface {
+	WriteString(str string) (int, error)
+}
+
+// WriteStringer is implemented by *os.File.
 type FileAppender struct {
-	*os.File
+	WriteStringer
 }
 
 func (self FileAppender) Append(log *Log) error {
