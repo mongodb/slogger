@@ -197,15 +197,17 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() error {
 		return MinorRotationError{err}
 	}
 
+	numLogsToDelete := len(rotationTimes) - self.MaxRotatedLogs
+
 	// return if we're under the limit
-	if len(rotationTimes) <= self.MaxRotatedLogs {
+	if numLogsToDelete <= 0 {
 		return nil
 	}
 
 	// otherwise remove enough of the oldest logfiles to bring us
 	// under the limit
 	sort.Sort(rotationTimes)
-	for _, rotationTime := range rotationTimes[self.MaxRotatedLogs:] {
+	for _, rotationTime := range rotationTimes[:numLogsToDelete] {
 		if err = os.Remove(rotationTime.Filename); err != nil {
 			return MinorRotationError{err}
 		}
