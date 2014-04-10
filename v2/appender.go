@@ -1,4 +1,4 @@
-// Copyright 2013 MongoDB, Inc.
+// Copyright 2013, 2014 MongoDB, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ func FormatLog(log *Log) string {
 	year, month, day := log.Timestamp.Date()
 	hour, min, sec := log.Timestamp.Clock()
 
-	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d] [%v.%v] [%v:%d] %v\n",
+	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d] [%v.%v] [%v:%v:%d] %v\n",
 		year, month, day,
 		hour, min, sec,
 		log.Prefix, log.Level.Type(),
-		log.Filename, log.Line,
+		log.Filename, log.FuncName, log.Line,
 		log.Message())
 }
 

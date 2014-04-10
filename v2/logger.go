@@ -1,4 +1,4 @@
-// Copyright 2013 MongoDB, Inc.
+// Copyright 2013, 2014 MongoDB, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ type Log struct {
 	Prefix     string
 	Level      Level
 	Filename   string
+	FuncName   string
 	Line       int
 	Timestamp  time.Time
 	MessageFmt string
@@ -39,8 +40,12 @@ func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, ar
 }
 
 func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, numDirsToKeep int, messageFmt string, args ...interface{}) *Log {
-	_, file, line, ok := runtime.Caller(callerSkip)
-	if !ok {
+	pc, file, line, ok := runtime.Caller(callerSkip)
+	funcName := ""
+
+	if ok {
+		funcName = runtime.FuncForPC(pc).Name()
+	} else {
 		file = "UNKNOWN_FILE"
 		line = -1
 	}
@@ -53,6 +58,7 @@ func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, numDirsT
 		Prefix:     prefix,
 		Level:      level,
 		Filename:   file,
+		FuncName:   funcName,
 		Line:       line,
 		Timestamp:  time.Now(),
 		MessageFmt: messageFmt,
@@ -72,10 +78,11 @@ func (self *Log) Message() string {
 // for use as a cache key
 func (self *Log) stringWithoutTime() string {
 	return fmt.Sprintf(
-		"%s %v %s %d %s",
+		"%s %v %s %s %d %s",
 		self.Prefix,
 		self.Level.Type(),
 		self.Filename,
+		self.FuncName,
 		self.Line,
 		self.Message(),
 	)
@@ -188,7 +195,7 @@ func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 func (self *Logger) logf(level Level, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	var errors []error
 
-	_, file, line, ok := nonSloggerCaller()
+	pc, file, line, ok := nonSloggerCaller()
 	//	_, file, line, ok := runtime.Caller(2+offset)
 	if ok == false {
 		return nil, []error{fmt.Errorf("Failed to find the calling method.")}
@@ -199,6 +206,7 @@ func (self *Logger) logf(level Level, messageFmt string, context *Context, args 
 		Prefix:     self.Prefix,
 		Level:      level,
 		Filename:   file,
+		FuncName:   runtime.FuncForPC(pc).Name(),
 		Line:       line,
 		Timestamp:  time.Now(),
 		MessageFmt: messageFmt,

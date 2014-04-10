@@ -1,4 +1,4 @@
-// Copyright 2013 MongoDB, Inc.
+// Copyright 2013, 2014 MongoDB, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,11 +37,12 @@ func TestFormat(test *testing.T) {
 		Prefix:     "agent.OplogTail",
 		Level:      INFO,
 		Filename:   "oplog.go",
+		FuncName:   "TailOplog",
 		Line:       88,
 		MessageFmt: "Tail started on RsId: `backup_test`",
 	}
 
-	expected := "[0001/01/01 00:00:00] [agent.OplogTail.info] [oplog.go:88] Tail started on RsId: `backup_test`\n"
+	expected := "[0001/01/01 00:00:00] [agent.OplogTail.info] [oplog.go:TailOplog:88] Tail started on RsId: `backup_test`\n"
 	received := FormatLog(&log)
 	if received != expected {
 		test.Errorf("Improperly formatted log. Received: `%v`", received)
@@ -75,6 +76,10 @@ func TestLog(test *testing.T) {
 
 	if strings.Contains(fileOutput, logMessage) == false {
 		test.Fatal("Incorrect message. Expected: `%v` Full log: `%v`", logMessage, fileOutput)
+	}
+
+	if !strings.Contains(fileOutput, "TestLog") {
+		test.Fatal("Incorrect function name. Expected `TestLog` Full log: `%v`", fileOutput)
 	}
 }
 
