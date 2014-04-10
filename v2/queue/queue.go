@@ -17,7 +17,7 @@
 package queue
 
 type Queue struct {
-	items chan interface{}
+	items           chan interface{}
 	onForcedDequeue func(interface{})
 }
 
@@ -34,7 +34,7 @@ func (q *Queue) Cap() int {
 
 func (q *Queue) Dequeue() (interface{}, error) {
 	select {
-	case item := <- q.items:
+	case item := <-q.items:
 		return item, nil
 	default:
 		return nil, UnderflowError{}
@@ -50,7 +50,7 @@ func (q *Queue) Enqueue(item interface{}) {
 			// q.items must be full
 			// force a dequeue in order to make room
 			select {
-			case item := <- q.items:
+			case item := <-q.items:
 				q.onForcedDequeue(item)
 			default:
 				// wow, we went from full to empty very fast.  let's start over
