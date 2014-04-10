@@ -44,7 +44,7 @@ func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, numDirsT
 	funcName := ""
 
 	if ok {
-		funcName = runtime.FuncForPC(pc).Name()
+		funcName = baseFuncNameForPC(pc)
 	} else {
 		file = "UNKNOWN_FILE"
 		line = -1
@@ -172,6 +172,19 @@ func IgnoreThisFilenameToo(fn string) {
 	ignoredFileNames = append(ignoredFileNames, fn)
 }
 
+func baseFuncNameForPC(pc uintptr) string {
+	fullFuncName := runtime.FuncForPC(pc).Name()
+
+	// strip github.com/tolsen/slogger/v2slogger.BaseFuncNameForPC down to BaseFuncNameForPC
+	periodIndex := strings.LastIndex(fullFuncName, ".")
+	if periodIndex >= 0 {
+		return fullFuncName[(periodIndex + 1):]
+	}
+
+	// no period present.  Just return the full function name
+	return fullFuncName
+}
+
 func containsAnyIgnoredFilename(s string) bool {
 	for _, ign := range ignoredFileNames {
 		if strings.Contains(s, ign) {
@@ -206,7 +219,7 @@ func (self *Logger) logf(level Level, messageFmt string, context *Context, args 
 		Prefix:     self.Prefix,
 		Level:      level,
 		Filename:   file,
-		FuncName:   runtime.FuncForPC(pc).Name(),
+		FuncName:   baseFuncNameForPC(pc),
 		Line:       line,
 		Timestamp:  time.Now(),
 		MessageFmt: messageFmt,
