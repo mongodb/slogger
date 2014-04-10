@@ -51,7 +51,9 @@ func (q *Queue) Enqueue(item interface{}) {
 			// force a dequeue in order to make room
 			select {
 			case item := <-q.items:
-				q.onForcedDequeue(item)
+				if q.onForcedDequeue != nil {
+					q.onForcedDequeue(item)
+				}
 			default:
 				// wow, we went from full to empty very fast.  let's start over
 			}
