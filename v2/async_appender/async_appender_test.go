@@ -17,6 +17,8 @@ package async_appender
 import (
 	"bytes"
 	"fmt"
+	"github.com/tolsen/slogger/v2"
+	. "github.com/tolsen/slogger/v2/test_util"
 	"io"
 	"os"
 	"regexp"
@@ -25,8 +27,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"github.com/tolsen/slogger/v2"
-	. "github.com/tolsen/slogger/v2/test_util"
 )
 
 func TestLog(test *testing.T) {
@@ -93,7 +93,7 @@ func TestConcurrentLog(test *testing.T) {
 			test.Fatalf("Failure to parse %s as int: %s", match[2], err.Error())
 		}
 
-		if tracker[go_n] != seq - 1 {
+		if tracker[go_n] != seq-1 {
 			test.Fatalf(
 				"Logged out of order?  Received seq %d for go %d when last seq was %d",
 				seq,
@@ -114,7 +114,7 @@ func TestConcurrentLog(test *testing.T) {
 			)
 		}
 	}
-}	
+}
 
 func assertCurrentLogContains(test *testing.T, expected string, appender *AsyncAppender) {
 	stringAppender, ok := appender.Appender.(*slogger.StringAppender)
@@ -145,20 +145,19 @@ func newAppenderAndLogger(test *testing.T) (appender *AsyncAppender, logger *slo
 		4096,
 		func(err error) {
 			msg := "Error during logging: " + err.Error()
-			fmt.Fprintln(os.Stderr, msg + "\n(Test may deadlock)")
+			fmt.Fprintln(os.Stderr, msg+"\n(Test may deadlock)")
 			test.Fatal(msg)
 		},
 	)
 
 	logger = &slogger.Logger{
-		Prefix: "rfa",
+		Prefix:    "rfa",
 		Appenders: []slogger.Appender{appender},
 	}
-	
+
 	return
 }
-	
+
 func setup(test *testing.T) (appender *AsyncAppender, logger *slogger.Logger) {
 	return newAppenderAndLogger(test)
 }
-

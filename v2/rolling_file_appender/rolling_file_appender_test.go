@@ -15,12 +15,12 @@
 package rolling_file_appender
 
 import (
+	"github.com/tolsen/slogger/v2"
+	. "github.com/tolsen/slogger/v2/test_util"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
-	"github.com/tolsen/slogger/v2"
-	. "github.com/tolsen/slogger/v2/test_util"
 )
 
 const rfaTestLogDir = "log"
@@ -72,7 +72,7 @@ func TestOldLogRemoval(test *testing.T) {
 	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 2)
 
-	_, errs = logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")	
+	_, errs = logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	AssertNoErrors(test, errs)
 	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 3)
@@ -85,7 +85,7 @@ func TestOldLogRemoval(test *testing.T) {
 
 func TestPreRotation(test *testing.T) {
 	createLogDir(test)
-	
+
 	file, err := os.Create(rfaTestLogPath)
 	if err != nil {
 		test.Fatalf("Failed to create empty logfile: %v", err)
@@ -159,15 +159,14 @@ func newAppenderAndLogger(test *testing.T, maxFileSize int64, maxRotatedLogs int
 	if err != nil {
 		test.Fatal("NewRollingFileAppender() failed: " + err.Error())
 	}
-	
+
 	logger = &slogger.Logger{
-		Prefix: "rfa",
+		Prefix:    "rfa",
 		Appenders: []slogger.Appender{appender},
 	}
-	
+
 	return
 }
-	
 
 func numLogFiles() (int, error) {
 	cwd, err := os.Open(rfaTestLogDir)
@@ -196,10 +195,10 @@ func readCurrentLog(test *testing.T) string {
 
 func setup(test *testing.T, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool) (appender *RollingFileAppender, logger *slogger.Logger) {
 	createLogDir(test)
-	
+
 	return newAppenderAndLogger(test, maxFileSize, maxRotatedLogs, rotateIfExists)
 }
 
 func teardown() {
 	os.RemoveAll(rfaTestLogDir)
-}	
+}

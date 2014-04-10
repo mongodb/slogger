@@ -97,7 +97,7 @@ func TestConcurrentAdd(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	num_groups, items_per_group, capacity := 10, 1000, 100
-	
+
 	qs := New(capacity)
 
 	var wg sync.WaitGroup
@@ -111,12 +111,12 @@ func TestConcurrentAdd(t *testing.T) {
 	last_seen_ints := make([]int, num_groups)
 
 	// check that it's sorted within groups
-	for i := 0; i< capacity; i++ {
+	for i := 0; i < capacity; i++ {
 		item, err := qs.q.Dequeue()
 		if err != nil {
 			t.Fatalf("Error while dequeueing: %v", err)
 		}
-		
+
 		concurrentItem, ok := item.(*concurrentTestItem)
 
 		if !ok {
@@ -135,7 +135,7 @@ func TestConcurrentAdd(t *testing.T) {
 
 type concurrentTestItem struct {
 	group int
-	seq int
+	seq   int
 }
 
 func addGroup(qs *QueuedSet, group int, n int, wg *sync.WaitGroup) {

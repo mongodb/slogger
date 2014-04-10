@@ -21,11 +21,11 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	var _ *Queue = New(10, func(interface{}) { })
+	var _ *Queue = New(10, func(interface{}) {})
 }
 
 func TestCap(t *testing.T) {
-	q := New(10, func(interface{}) { })
+	q := New(10, func(interface{}) {})
 	if q.Cap() != 10 {
 		t.Fatal("q.Cap() != 10 !")
 	}
@@ -36,7 +36,7 @@ func TestConcurrentEnqueue(t *testing.T) {
 
 	num_groups, items_per_group := 10, 1000
 	capacity := num_groups * items_per_group
-	
+
 	onForcedDequeueCalled := false
 	q := New(capacity, func(interface{}) { onForcedDequeueCalled = true })
 
@@ -59,12 +59,12 @@ func TestConcurrentEnqueue(t *testing.T) {
 	last_seen_ints := make([]int, num_groups)
 
 	// check that it's sorted within groups
-	for i := 0; i< capacity; i++ {
+	for i := 0; i < capacity; i++ {
 		item, err := q.Dequeue()
 		if err != nil {
 			t.Fatalf("Error while dequeueing: %v", err)
 		}
-			
+
 		concurrentItem, ok := item.(*concurrentTestItem)
 
 		if !ok {
@@ -77,13 +77,11 @@ func TestConcurrentEnqueue(t *testing.T) {
 
 		last_seen_ints[concurrentItem.group]++
 	}
-	
+
 }
 
-	
-
 func TestDequeueUnderflow(t *testing.T) {
-	q := New(10, func(interface{}) { })
+	q := New(10, func(interface{}) {})
 
 	item, err := q.Dequeue()
 
@@ -99,24 +97,24 @@ func TestDequeueUnderflow(t *testing.T) {
 func TestEnqueueDequeue(t *testing.T) {
 	onForcedDequeueCalled := false
 	q := New(10, func(interface{}) { onForcedDequeueCalled = true })
-	
+
 	q.Enqueue("Hello")
 
 	if onForcedDequeueCalled {
 		t.Error("onForcedDequeued should not have been called")
 	}
-	
+
 	b, err := q.Dequeue()
-	
+
 	if err != nil {
 		t.Errorf("q.Dequeue() should not have returned an error: %v", err)
 	}
-	
+
 	b_str, ok := b.(string)
 	if !ok {
 		t.Errorf("q.Dequeue() should have returned a string as that is what was enqueued")
 	}
-	
+
 	if b_str != "Hello" {
 		t.Errorf("q.Dequeue() should have returned what was enqueued (\"Hello\") but returned \"%s\" instead", b)
 	}
@@ -137,23 +135,23 @@ func TestEnqueueOverCapacity(t *testing.T) {
 	}
 
 	b, err := q.Dequeue()
-	
+
 	if err != nil {
 		t.Errorf("q.Dequeue() should not have returned an error: %v", err)
 	}
-	
+
 	b_str, ok := b.(string)
 	if !ok {
 		t.Errorf("q.Dequeue() should have returned a string as that is what was enqueued")
 	}
-	
+
 	if b_str != "World" {
 		t.Errorf("q.Dequeue() should have returned what was enqueued (\"World\") but returned \"%s\" instead", b)
 	}
 }
 
 func TestIsEmpty(t *testing.T) {
-	q := New(10, func(interface{}) { })
+	q := New(10, func(interface{}) {})
 
 	if !q.IsEmpty() {
 		t.Errorf("An empty queue should return true for IsEmpty()")
@@ -171,7 +169,7 @@ func TestIsEmpty(t *testing.T) {
 }
 
 func TestIsFull(t *testing.T) {
-	q := New(1, func(interface{}) { })
+	q := New(1, func(interface{}) {})
 
 	if q.IsFull() {
 		t.Errorf("An empty queue with a non-zero capacity should not be full")
@@ -189,7 +187,7 @@ func TestIsFull(t *testing.T) {
 }
 
 func TestLen(t *testing.T) {
-	q := New(10, func(interface{}) { })
+	q := New(10, func(interface{}) {})
 
 	if q.Len() != 0 {
 		t.Errorf("An empty queue should have a Len of 0")
@@ -204,21 +202,21 @@ func TestLen(t *testing.T) {
 	if q.Len() != 2 {
 		t.Errorf("The queue should have a Len of 2 now")
 	}
-		
+
 	q.Dequeue()
 	if q.Len() != 1 {
 		t.Errorf("The queue should have a Len of 1 now")
 	}
-	
+
 	q.Dequeue()
 	if q.Len() != 0 {
-		t.Errorf("The queue should have a Len of 0 now")		
+		t.Errorf("The queue should have a Len of 0 now")
 	}
 }
 
 type concurrentTestItem struct {
 	group int
-	seq int
+	seq   int
 }
 
 func enqueueGroup(q *Queue, group int, n int, wg *sync.WaitGroup) {

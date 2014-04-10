@@ -20,8 +20,8 @@ import (
 )
 
 type QueuedSet struct {
-	q *queue.Queue
-	set map[interface{}]int
+	q    *queue.Queue
+	set  map[interface{}]int
 	lock sync.RWMutex
 }
 

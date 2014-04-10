@@ -7,4 +7,3 @@ func AssertNoErrors(test *testing.T, errs []error) {
 		test.Errorf("Expected to be empty: %v", errs)
 	}
 }
-
