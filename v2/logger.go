@@ -92,7 +92,7 @@ type Logger struct {
 	Prefix             string
 	Appenders          []Appender
 	StripDirs          int
-	cache              *queued_set.QueuedSet
+	suppressionCache   *queued_set.QueuedSet
 	suppressionEnabled bool
 }
 
@@ -109,12 +109,12 @@ func (self *Logger) LogfWithContext(level Level, messageFmt string, context *Con
 
 func (self *Logger) DisableLogSuppression() {
 	self.suppressionEnabled = false
-	self.cache = nil
+	self.suppressionCache = nil
 	return
 }
 
 func (self *Logger) EnableLogSuppression(historyCapacity int) {
-	self.cache = queued_set.New(historyCapacity)
+	self.suppressionCache = queued_set.New(historyCapacity)
 	self.suppressionEnabled = true
 	return
 }
@@ -227,7 +227,7 @@ func (self *Logger) logf(level Level, messageFmt string, context *Context, args 
 		Context:    context,
 	}
 
-	if !self.suppressionEnabled || self.cache.Add(log.stringWithoutTime()) {
+	if !self.suppressionEnabled || self.suppressionCache.Add(log.stringWithoutTime()) {
 		for _, appender := range self.Appenders {
 			if err := appender.Append(log); err != nil {
 				error := fmt.Errorf("Error appending. Appender: %T Error: %v", appender, err)
