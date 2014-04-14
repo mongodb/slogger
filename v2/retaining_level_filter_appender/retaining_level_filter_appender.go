@@ -60,7 +60,11 @@ func (self *RetainingLevelFilterAppender) Append(log *slogger.Log) error {
 }
 
 func (self *RetainingLevelFilterAppender) AppendRetainedLogs(category string) []error {
-	return self.retainedLogs.SendLogsToAppender(self.appender, category)
+	return self.retainedLogs.sendLogsToAppender(self.appender, category)
+}
+
+func (self *RetainingLevelFilterAppender) ClearRetainedLogs(category string) {
+	self.retainedLogs.clearLogs(category)
 }
 
 func (self *RetainingLevelFilterAppender) Flush() error {

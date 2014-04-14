@@ -39,6 +39,12 @@ func newLogRetainer(queueCapacity int) *logRetainer {
 	}
 }
 
+func (self *logRetainer) clearLogs(category string) {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+	delete(self.logsByCategory, category)
+}
+
 func (self *logRetainer) logsQueue(category string, createIfAbsent bool) *queue.Queue {
 	isReadLocked := true
 	self.lock.RLock()
@@ -75,7 +81,7 @@ func (self *logRetainer) retainLog(log *slogger.Log, category string) {
 	self.logsQueue(category, true).Enqueue(log)
 }
 
-func (self *logRetainer) SendLogsToAppender(appender slogger.Appender, category string) []error {
+func (self *logRetainer) sendLogsToAppender(appender slogger.Appender, category string) []error {
 	errs := make([]error, 0)
 
 	logsQ := self.logsQueue(category, false)
