@@ -28,20 +28,18 @@ import (
 )
 
 type RetainingLevelFilterAppender struct {
-	appender      slogger.Appender
-	level         slogger.Level
-	levelLock     sync.RWMutex
-	retainedLogs  *logRetainer
-	categoryKey   string // key to get category from log's context
-	retention     bool
-	retentionLock sync.RWMutex
+	appender     slogger.Appender
+	level        slogger.Level // protected by lock
+	retainedLogs *logRetainer
+	categoryKey  string // key to get category from log's context
+	retention    bool   // protected by lock
+	lock         sync.RWMutex
 }
 
 func New(categoryKey string, capacityPerCategory int, level slogger.Level, appender slogger.Appender) *RetainingLevelFilterAppender {
 	return &RetainingLevelFilterAppender{
 		appender,
 		level,
-		sync.RWMutex{},
 		newLogRetainer(capacityPerCategory),
 		categoryKey,
 		true,
@@ -72,26 +70,26 @@ func (self *RetainingLevelFilterAppender) Flush() error {
 }
 
 func (self *RetainingLevelFilterAppender) Level() slogger.Level {
-	self.levelLock.RLock()
-	defer self.levelLock.RUnlock()
+	self.lock.RLock()
+	defer self.lock.RUnlock()
 	return self.level
 }
 
 func (self *RetainingLevelFilterAppender) Retention() bool {
-	self.retentionLock.RLock()
-	defer self.retentionLock.RUnlock()
+	self.lock.RLock()
+	defer self.lock.RUnlock()
 	return self.retention
 }
 
 func (self *RetainingLevelFilterAppender) SetLevel(level slogger.Level) {
-	self.levelLock.Lock()
-	defer self.levelLock.Unlock()
+	self.lock.Lock()
+	defer self.lock.Unlock()
 	self.level = level
 }
 
 func (self *RetainingLevelFilterAppender) SetRetention(retention bool) {
-	self.retentionLock.Lock()
-	defer self.retentionLock.Unlock()
+	self.lock.Lock()
+	defer self.lock.Unlock()
 	self.retention = retention
 }
 
