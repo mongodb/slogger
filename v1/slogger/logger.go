@@ -30,7 +30,8 @@ type Logger struct {
 
 // Log a message and a level to a logger instance. This returns a
 // pointer to a Log and a slice of errors that were gathered from every
-// Appender (nil errors included).
+// Appender (nil errors included), or nil and an empty error slice if
+// any turbo filter condition was not satisfied causing an early exit.
 func (self *Logger) Logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	return self.logf(level, messageFmt, args...)
 }
