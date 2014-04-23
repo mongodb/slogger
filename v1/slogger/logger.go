@@ -23,8 +23,9 @@ func (self *Log) Message() string {
 }
 
 type Logger struct {
-	Prefix    string
-	Appenders []Appender
+	Prefix       string
+	Appenders    []Appender
+	TurboFilters []TurboFilter
 }
 
 // Log a message and a level to a logger instance. This returns a
@@ -58,6 +59,12 @@ func (self *Logger) Stackf(level Level, stackErr error, messageFmt string, args 
 
 func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	var errors []error
+
+	for _, filter := range self.TurboFilters {
+		if filter(level, messageFmt, args) == false {
+			return nil, errors
+		}
+	}
 
 	_, file, line, ok := runtime.Caller(2)
 	if ok == false {
