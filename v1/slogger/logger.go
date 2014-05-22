@@ -23,13 +23,15 @@ func (self *Log) Message() string {
 }
 
 type Logger struct {
-	Prefix    string
-	Appenders []Appender
+	Prefix       string
+	Appenders    []Appender
+	TurboFilters []TurboFilter
 }
 
 // Log a message and a level to a logger instance. This returns a
 // pointer to a Log and a slice of errors that were gathered from every
-// Appender (nil errors included).
+// Appender (nil errors included), or nil and an empty error slice if
+// any turbo filter condition was not satisfied causing an early exit.
 func (self *Logger) Logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	return self.logf(level, messageFmt, args...)
 }
@@ -58,6 +60,12 @@ func (self *Logger) Stackf(level Level, stackErr error, messageFmt string, args 
 
 func (self *Logger) logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	var errors []error
+
+	for _, filter := range self.TurboFilters {
+		if filter(level, messageFmt, args) == false {
+			return nil, errors
+		}
+	}
 
 	_, file, line, ok := runtime.Caller(2)
 	if ok == false {
@@ -94,6 +102,7 @@ type Level uint8
 // `level < WARN`, `level >= INFO` have intuitive meaning.
 const (
 	OFF Level = iota
+	TRACE
 	DEBUG
 	INFO
 	WARN
@@ -110,6 +119,8 @@ func (self Level) Type() string {
 		return "info"
 	case DEBUG:
 		return "debug"
+	case TRACE:
+		return "trace"
 	}
 
 	return "off?"
