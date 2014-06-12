@@ -42,7 +42,7 @@ func TestFormat(test *testing.T) {
 		MessageFmt: "Tail started on RsId: `backup_test`",
 	}
 
-	expected := "[0001/01/01 00:00:00] [agent.OplogTail.info] [oplog.go:TailOplog:88] Tail started on RsId: `backup_test`\n"
+	expected := "[0001/01/01 00:00:00.000] [agent.OplogTail.info] [oplog.go:TailOplog:88] Tail started on RsId: `backup_test`\n"
 	received := FormatLog(&log)
 	if received != expected {
 		test.Errorf("Improperly formatted log. Received: `%v`", received)

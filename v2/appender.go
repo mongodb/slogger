@@ -28,10 +28,12 @@ type Appender interface {
 func FormatLog(log *Log) string {
 	year, month, day := log.Timestamp.Date()
 	hour, min, sec := log.Timestamp.Clock()
+	millisec := log.Timestamp.Nanosecond() / 1000000
 
-	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d] [%v.%v] [%v:%v:%d] %v\n",
+	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d] [%v.%v] [%v:%v:%d] %v\n",
 		year, month, day,
 		hour, min, sec,
+		millisec,
 		log.Prefix, log.Level.Type(),
 		log.Filename, log.FuncName, log.Line,
 		log.Message())
