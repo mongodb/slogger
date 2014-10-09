@@ -244,11 +244,6 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 }
 
 func (self *RollingFileAppender) rotate() error {
-	// rename old log
-	if err := self.renameLogFile(self.absPath); err != nil {
-		return err
-	}
-
 	// close current log if we have one open
 	if self.file != nil {
 		if err := self.file.Close(); err != nil {
@@ -256,6 +251,11 @@ func (self *RollingFileAppender) rotate() error {
 		}
 	}
 	self.curFileSize = 0
+
+	// rename old log
+	if err := self.renameLogFile(self.absPath); err != nil {
+		return err
+	}
 
 	// create new log
 	file, err := os.Create(self.absPath)
