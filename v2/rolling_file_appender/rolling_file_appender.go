@@ -29,12 +29,13 @@ import (
 )
 
 type RollingFileAppender struct {
-	MaxFileSize     int64
-	MaxRotatedLogs  int
-	file            *os.File
-	absPath         string
-	curFileSize     int64
-	headerGenerator func() []string
+	MaxFileSize          int64
+	MaxRotatedLogs       int
+	file                 *os.File
+	absPath              string
+	curFileSize          int64
+	headerGenerator      func() []string
+	stringWriterCallback func (*os.File) slogger.StringWriter
 }
 
 // New creates a new RollingFileAppender.  filename is path to the
@@ -63,9 +64,18 @@ type RollingFileAppender struct {
 // at least Flush()).  This ensures that in case of program exit
 // (normal or panicking) that any pending logs are logged.
 func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
+	return NewWithStringWriter(filename, maxFileSize, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
+}
+
+func NewWithStringWriter(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
 	if headerGenerator == nil {
 		headerGenerator = func() []string {
 			return []string{}
+		}
+	}
+	if stringWriterCallback == nil {
+		stringWriterCallback = func(f *os.File) slogger.StringWriter {
+			return f
 		}
 	}
 
@@ -75,10 +85,11 @@ func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists 
 	}
 
 	appender := &RollingFileAppender{
-		MaxFileSize:     maxFileSize,
-		MaxRotatedLogs:  maxRotatedLogs,
-		absPath:         absPath,
-		headerGenerator: headerGenerator,
+		MaxFileSize:          maxFileSize,
+		MaxRotatedLogs:       maxRotatedLogs,
+		absPath:              absPath,
+		headerGenerator:      headerGenerator,
+		stringWriterCallback: stringWriterCallback,
 	}
 
 	fileInfo, err := os.Stat(absPath)
@@ -155,7 +166,7 @@ func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytes
 	}
 
 	msg := slogger.FormatLog(log)
-	bytesWritten, err = self.file.WriteString(msg)
+	bytesWritten, err = self.stringWriterCallback(self.file).WriteString(msg)
 
 	if err != nil {
 		err = WriteError{self.absPath, err}

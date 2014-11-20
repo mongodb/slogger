@@ -39,8 +39,13 @@ func FormatLog(log *Log) string {
 		log.Message())
 }
 
+type StringWriter interface {
+	WriteString(s string) (ret int, err error)
+	Sync() error
+}
+
 type FileAppender struct {
-	*os.File
+	StringWriter
 }
 
 func (self FileAppender) Append(log *Log) error {
