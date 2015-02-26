@@ -29,7 +29,8 @@ const rfaTestLogPath = rfaTestLogDir + "/" + rfaTestLogFilename
 
 func TestLog(test *testing.T) {
 	defer teardown()
-	_, logger := setup(test, 1000, 10, false)
+	appender, logger := setup(test, 1000, 10, false)
+	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is a log message")
 	AssertNoErrors(test, errs)
@@ -41,7 +42,8 @@ func TestLog(test *testing.T) {
 func TestNoRotation(test *testing.T) {
 	defer teardown()
 
-	_, logger := setup(test, 1000, 10, false)
+	appender, logger := setup(test, 1000, 10, false)
+	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is under 1,000 characters and should not cause a log rotation")
 	AssertNoErrors(test, errs)
@@ -53,7 +55,8 @@ func TestNoRotation(test *testing.T) {
 func TestNoRotation2(test *testing.T) {
 	defer teardown()
 
-	_, logger := setup(test, -1, 10, false)
+	appender, logger := setup(test, -1, 10, false)
+	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This should not cause a log rotation")
 	AssertNoErrors(test, errs)
@@ -65,7 +68,8 @@ func TestNoRotation2(test *testing.T) {
 func TestOldLogRemoval(test *testing.T) {
 	defer teardown()
 
-	_, logger := setup(test, 10, 2, false)
+	appender, logger := setup(test, 10, 2, false)
+	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	AssertNoErrors(test, errs)
@@ -96,7 +100,8 @@ func TestPreRotation(test *testing.T) {
 		test.Fatalf("Failed to close logfile: %v", err)
 	}
 
-	_, logger := newAppenderAndLogger(test, 1000, 2, true)
+	appender, logger := newAppenderAndLogger(test, 1000, 2, true)
+	defer appender.Close()
 	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 2)
 }
@@ -104,7 +109,8 @@ func TestPreRotation(test *testing.T) {
 func TestRotation(test *testing.T) {
 	defer teardown()
 
-	_, logger := setup(test, 10, 10, false)
+	appender, logger := setup(test, 10, 10, false)
+	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
 	AssertNoErrors(test, errs)
@@ -138,10 +144,10 @@ func assertNumLogFiles(test *testing.T, expected_n int) {
 
 func createLogDir(test *testing.T) {
 	os.RemoveAll(rfaTestLogDir)
-	err := os.Mkdir(rfaTestLogDir, 0777)
+	err := os.MkdirAll(rfaTestLogDir, 0777)
 
 	if err != nil {
-		test.Fatal("setup() failed to create directory: " + rfaTestLogDir)
+		test.Fatal("setup() failed to create directory: "+ err.Error())
 	}
 }
 
