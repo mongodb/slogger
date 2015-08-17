@@ -408,9 +408,9 @@ func denyLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) {
 }
 
 func logHelloMongoDB(logger *Logger) {
-	logger.logf(WARN, "Hello MongoDB", nil)
+	logger.logf(WARN, NoErrorCode, "Hello MongoDB", nil)
 }
 
 func logHelloWorld(logger *Logger) {
-	logger.logf(WARN, "Hello World", nil)
+	logger.logf(WARN, NoErrorCode, "Hello World", nil)
 }

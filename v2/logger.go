@@ -26,6 +26,7 @@ import (
 type Log struct {
 	Prefix     string
 	Level      Level
+	ErrorCode  ErrorCode
 	Filename   string
 	FuncName   string
 	Line       int
@@ -35,11 +36,11 @@ type Log struct {
 	Context    *Context
 }
 
-func SimpleLog(prefix string, level Level, callerSkip int, messageFmt string, args ...interface{}) *Log {
-	return SimpleLogStrippingDirs(prefix, level, callerSkip, -1, messageFmt, args...)
+func SimpleLog(prefix string, level Level, errorCode ErrorCode, callerSkip int, messageFmt string, args ...interface{}) *Log {
+	return SimpleLogStrippingDirs(prefix, level, errorCode, callerSkip, -1, messageFmt, args...)
 }
 
-func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, numDirsToKeep int, messageFmt string, args ...interface{}) *Log {
+func SimpleLogStrippingDirs(prefix string, level Level, errorCode ErrorCode, callerSkip int, numDirsToKeep int, messageFmt string, args ...interface{}) *Log {
 	pc, file, line, ok := runtime.Caller(callerSkip)
 	funcName := ""
 
@@ -57,6 +58,7 @@ func SimpleLogStrippingDirs(prefix string, level Level, callerSkip int, numDirsT
 	return &Log{
 		Prefix:     prefix,
 		Level:      level,
+		ErrorCode:  errorCode,
 		Filename:   file,
 		FuncName:   funcName,
 		Line:       line,
@@ -78,9 +80,10 @@ func (self *Log) Message() string {
 // for use as a cache key
 func (self *Log) stringWithoutTime() string {
 	return fmt.Sprintf(
-		"%s %v %s %s %d %s",
+		"%s %v %d %s %s %d %s",
 		self.Prefix,
 		self.Level.Type(),
+		self.ErrorCode,
 		self.Filename,
 		self.FuncName,
 		self.Line,
@@ -100,11 +103,15 @@ type Logger struct {
 // pointer to a Log and a slice of errors that were gathered from every
 // Appender (nil errors included).
 func (self *Logger) Logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
-	return self.logf(level, messageFmt, nil, args...)
+	return self.logf(level, NoErrorCode, messageFmt, nil, args...)
 }
 
 func (self *Logger) LogfWithContext(level Level, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
-	return self.logf(level, messageFmt, context, args...)
+	return self.logf(level, NoErrorCode, messageFmt, context, args...)
+}
+
+func (self *Logger) LogfWithErrorCodeAndContext(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
+	return self.logf(level, errorCode, messageFmt, context, args...)
 }
 
 func (self *Logger) DisableLogSuppression() {
@@ -132,7 +139,11 @@ func (self *Logger) Errorf(level Level, messageFmt string, args ...interface{}) 
 }
 
 func (self *Logger) ErrorfWithContext(level Level, messageFmt string, context *Context, args ...interface{}) error {
-	log, _ := self.logf(level, messageFmt, context, args...)
+	return self.ErrorfWithErrorCodeAndContext(level, NoErrorCode, messageFmt, context, args...)
+}
+
+func (self *Logger) ErrorfWithErrorCodeAndContext(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) error {
+	log, _ := self.logf(level, errorCode, messageFmt, context, args...)
 	return errors.New(log.Message())
 }
 
@@ -158,8 +169,12 @@ func (self *Logger) Stackf(level Level, stackErr error, messageFmt string, args 
 }
 
 func (self *Logger) StackfWithContext(level Level, stackErr error, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
+	return self.StackfWithErrorCodeAndContext(level, NoErrorCode, stackErr, messageFmt, context, args...)
+}
+
+func (self *Logger) StackfWithErrorCodeAndContext(level Level, errorCode ErrorCode, stackErr error, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	messageFmt = fmt.Sprintf("%v\n%v", messageFmt, stackErr.Error())
-	return self.logf(level, messageFmt, context, args...)
+	return self.logf(level, errorCode, messageFmt, context, args...)
 }
 
 var ignoredFileNames = []string{"logger.go"}
@@ -205,7 +220,7 @@ func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 }
 
 // accepts a Context or *Context as the first element of args
-func (self *Logger) logf(level Level, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
+func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	var errors []error
 
 	pc, file, line, ok := nonSloggerCaller()
@@ -218,6 +233,7 @@ func (self *Logger) logf(level Level, messageFmt string, context *Context, args 
 	log := &Log{
 		Prefix:     self.Prefix,
 		Level:      level,
+		ErrorCode:  errorCode,
 		Filename:   file,
 		FuncName:   baseFuncNameForPC(pc),
 		Line:       line,
@@ -297,6 +313,10 @@ func (self Level) Type() string {
 
 	return levelToStr[uint8(self)]
 }
+
+type ErrorCode uint8
+
+const NoErrorCode = 0
 
 func stacktrace() []string {
 	ret := make([]string, 0, 2)
