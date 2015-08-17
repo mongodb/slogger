@@ -30,12 +30,18 @@ func FormatLog(log *Log) string {
 	hour, min, sec := log.Timestamp.Clock()
 	millisec := log.Timestamp.Nanosecond() / 1000000
 
-	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d] [%v.%v] [%v:%v:%d] %v\n",
+	errorCodeStr := ""
+	if log.ErrorCode != NoErrorCode {
+		errorCodeStr += fmt.Sprintf("[%v] ", log.ErrorCode)
+	}
+
+	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d] [%v.%v] [%v:%v:%d] %v%v\n",
 		year, month, day,
 		hour, min, sec,
 		millisec,
 		log.Prefix, log.Level.Type(),
 		log.Filename, log.FuncName, log.Line,
+		errorCodeStr,
 		log.Message())
 }
 
