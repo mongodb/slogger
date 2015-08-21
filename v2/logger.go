@@ -134,6 +134,16 @@ func (self *Logger) EnableLogSuppression(historyCapacity int) {
 //         whatIsExpected, whatIsReturned)
 // }5
 //
+
+type ErrorWithCode struct {
+	ErrCode ErrorCode
+	Err     error
+}
+
+func (e ErrorWithCode) Error() string {
+	return e.Err.Error()
+}
+
 func (self *Logger) Errorf(level Level, messageFmt string, args ...interface{}) error {
 	return self.ErrorfWithContext(level, messageFmt, nil, args...)
 }
@@ -144,7 +154,7 @@ func (self *Logger) ErrorfWithContext(level Level, messageFmt string, context *C
 
 func (self *Logger) ErrorfWithErrorCodeAndContext(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) error {
 	log, _ := self.logf(level, errorCode, messageFmt, context, args...)
-	return errors.New(log.Message())
+	return ErrorWithCode{errorCode, errors.New(log.Message())}
 }
 
 func (self *Logger) Flush() (errors []error) {
