@@ -69,12 +69,7 @@ func SimpleLogStrippingDirs(prefix string, level Level, errorCode ErrorCode, cal
 }
 
 func (self *Log) Message() string {
-	messageFmt := self.MessageFmt
-	if self.Context != nil {
-		messageFmt = self.Context.interpolateString(self.MessageFmt)
-	}
-
-	return fmt.Sprintf(messageFmt, self.Args...)
+	return fmt.Sprintf(self.MessageFmt, self.Args...)
 }
 
 // for use as a cache key

@@ -299,12 +299,6 @@ func TestSuppression(t *testing.T) {
 }
 
 func TestContext(t *testing.T) {
-	buf := new(bytes.Buffer)
-	logger := &Logger{
-		Prefix:    "TestContext",
-		Appenders: []Appender{NewStringAppender(buf)},
-	}
-
 	ctxt := NewContext()
 	ctxt.Add("foo", "bar")
 	ctxt.Add("biz", "baz")
@@ -333,19 +327,6 @@ func TestContext(t *testing.T) {
 	_, found = ctxt.Get("biz")
 	if found {
 		t.Fatalf("Expected \"biz\" to not be in ctxt.  ctxt: %v", ctxt)
-	}
-
-	str := ctxt.interpolateString("Lassie {foo}ked at {foo}d")
-	if str != "Lassie barked at bard" {
-		t.Fatalf("Expected \"%s\" to be \"Lassie barked at bard\"", str)
-	}
-
-	logger.LogfWithContext(WARN, "%s {foo}ked at {biz}", ctxt, "Lassie")
-
-	loggedStr := buf.String()
-
-	if !strings.HasSuffix(loggedStr, "Lassie barked at <nil>\n\n") {
-		t.Fatalf("Expected \"%s\" to end with \"Lassie barked at <nil>\n\n\"", buf.String())
 	}
 }
 

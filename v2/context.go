@@ -14,11 +14,6 @@
 
 package slogger
 
-import (
-	"fmt"
-	"regexp"
-)
-
 type Context struct {
 	fields map[string]interface{}
 }
@@ -54,19 +49,4 @@ func (c *Context) Len() int {
 
 func (c *Context) Remove(key string) {
 	delete(c.fields, key)
-}
-
-var contextInterpolateRx *regexp.Regexp = regexp.MustCompile("\\{[^}]*\\}")
-
-func (c *Context) interpolateString(str string) string {
-	replacer := func(s string) string {
-		key := s[1 : len(s)-1] // trim off curly braces
-		val, found := c.fields[key]
-		if found {
-			return fmt.Sprint(val)
-		}
-		return fmt.Sprint(nil)
-	}
-
-	return contextInterpolateRx.ReplaceAllStringFunc(str, replacer)
 }
