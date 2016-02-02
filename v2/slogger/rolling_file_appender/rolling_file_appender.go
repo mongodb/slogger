@@ -19,7 +19,7 @@ package rolling_file_appender
 
 import (
 	"fmt"
-	"github.com/tolsen/slogger/v2"
+	"github.com/tolsen/slogger/v2/slogger"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,7 +35,7 @@ type RollingFileAppender struct {
 	absPath              string
 	curFileSize          int64
 	headerGenerator      func() []string
-	stringWriterCallback func (*os.File) slogger.StringWriter
+	stringWriterCallback func(*os.File) slogger.StringWriter
 }
 
 // New creates a new RollingFileAppender.  filename is path to the

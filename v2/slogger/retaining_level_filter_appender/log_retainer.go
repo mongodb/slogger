@@ -18,8 +18,8 @@
 package retaining_level_filter_appender
 
 import (
-	"github.com/tolsen/slogger/v2"
-	"github.com/tolsen/slogger/v2/queue"
+	"github.com/tolsen/slogger/v2/slogger"
+	"github.com/tolsen/slogger/v2/slogger/queue"
 
 	"fmt"
 	"sync"

@@ -15,7 +15,7 @@
 package queued_set
 
 import (
-	"github.com/tolsen/slogger/v2/queue"
+	"github.com/tolsen/slogger/v2/slogger/queue"
 	"sync"
 )
 

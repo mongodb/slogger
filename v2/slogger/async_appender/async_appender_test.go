@@ -17,8 +17,8 @@ package async_appender
 import (
 	"bytes"
 	"fmt"
-	"github.com/tolsen/slogger/v2"
-	. "github.com/tolsen/slogger/v2/test_util"
+	"github.com/tolsen/slogger/v2/slogger"
+	. "github.com/tolsen/slogger/v2/slogger/test_util"
 	"io"
 	"os"
 	"regexp"

@@ -172,7 +172,7 @@ func TestStacktrace(test *testing.T) {
 	// runtime/proc.c:1214
 
 	stacktrace := NewStackError("").Stacktrace
-	if match, _ := regexp.MatchString("^at slogger/v2/logger_test.go:\\d+", stacktrace[0]); match == false {
+	if match, _ := regexp.MatchString("^at v2/slogger/logger_test.go:\\d+", stacktrace[0]); match == false {
 		test.Errorf("Stacktrace level 0 did not match. Received: %v", stacktrace[0])
 	}
 
@@ -216,7 +216,7 @@ func TestStackError(test *testing.T) {
 		test.Errorf("Expected output to start with the message. Received:\n%v", str)
 	}
 
-	if match, _ := regexp.MatchString("slogger/v2/logger_test.go:\\d+", str); match == false {
+	if match, _ := regexp.MatchString("v2/slogger/logger_test.go:\\d+", str); match == false {
 		test.Errorf("Expected to see output for `v2/logger_test.go`. Received:\n%v", str)
 	}
 

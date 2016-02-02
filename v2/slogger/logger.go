@@ -17,7 +17,7 @@ package slogger
 import (
 	"errors"
 	"fmt"
-	"github.com/tolsen/slogger/v2/queued_set"
+	"github.com/tolsen/slogger/v2/slogger/queued_set"
 	"runtime"
 	"strings"
 	"time"

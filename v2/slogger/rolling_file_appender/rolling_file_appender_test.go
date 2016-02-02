@@ -15,8 +15,8 @@
 package rolling_file_appender
 
 import (
-	"github.com/tolsen/slogger/v2"
-	. "github.com/tolsen/slogger/v2/test_util"
+	"github.com/tolsen/slogger/v2/slogger"
+	. "github.com/tolsen/slogger/v2/slogger/test_util"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -147,7 +147,7 @@ func createLogDir(test *testing.T) {
 	err := os.MkdirAll(rfaTestLogDir, 0777)
 
 	if err != nil {
-		test.Fatal("setup() failed to create directory: "+ err.Error())
+		test.Fatal("setup() failed to create directory: " + err.Error())
 	}
 }
 

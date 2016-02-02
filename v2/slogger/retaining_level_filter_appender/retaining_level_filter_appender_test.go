@@ -22,8 +22,8 @@
 package retaining_level_filter_appender
 
 import (
-	"github.com/tolsen/slogger/v2"
-	tu "github.com/tolsen/slogger/v2/test_util"
+	"github.com/tolsen/slogger/v2/slogger"
+	tu "github.com/tolsen/slogger/v2/slogger/test_util"
 
 	"bytes"
 	"strings"
