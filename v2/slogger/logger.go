@@ -86,14 +86,16 @@ func (self *Log) stringWithoutTime() string {
 }
 
 type Logger struct {
-	Prefix    string
-	Appenders []Appender
-	StripDirs int
+	Prefix       string
+	Appenders    []Appender
+	StripDirs    int
+	TurboFilters []TurboFilter
 }
 
 // Log a message and a level to a logger instance. This returns a
 // pointer to a Log and a slice of errors that were gathered from every
-// Appender (nil errors included).
+// Appender (nil errors included), or nil and an empty error slice if
+// any turbo filter condition was not satisfied causing an early exit.
 func (self *Logger) Logf(level Level, messageFmt string, args ...interface{}) (*Log, []error) {
 	return self.logf(level, NoErrorCode, messageFmt, nil, args...)
 }
@@ -209,8 +211,13 @@ func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	var errors []error
 
+	for _, filter := range self.TurboFilters {
+		if filter(level, messageFmt, args) == false {
+			return nil, errors
+		}
+	}
+
 	pc, file, line, ok := nonSloggerCaller()
-	//	_, file, line, ok := runtime.Caller(2+offset)
 	if ok == false {
 		return nil, []error{fmt.Errorf("Failed to find the calling method.")}
 	}
