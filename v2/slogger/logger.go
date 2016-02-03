@@ -246,11 +246,10 @@ type Level uint8
 const (
 	OFF Level = iota
 	DEBUG
-	ROUTINE
 	INFO
 	WARN
 	ERROR
-	DOOM
+	FATAL
 	topLevel
 )
 
@@ -260,13 +259,12 @@ var levelToStr []string
 
 func init() {
 	strToLevel = map[string]Level{
-		"off":     OFF,
-		"debug":   DEBUG,
-		"routine": ROUTINE,
-		"info":    INFO,
-		"warn":    WARN,
-		"error":   ERROR,
-		"doom":    DOOM,
+		"off":   OFF,
+		"debug": DEBUG,
+		"info":  INFO,
+		"warn":  WARN,
+		"error": ERROR,
+		"fatal": FATAL,
 	}
 
 	levelToStr = make([]string, len(strToLevel))
