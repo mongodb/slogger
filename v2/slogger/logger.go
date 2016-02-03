@@ -17,7 +17,6 @@ package slogger
 import (
 	"errors"
 	"fmt"
-	"github.com/tolsen/slogger/v2/slogger/queued_set"
 	"runtime"
 	"strings"
 	"time"
@@ -87,11 +86,9 @@ func (self *Log) stringWithoutTime() string {
 }
 
 type Logger struct {
-	Prefix             string
-	Appenders          []Appender
-	StripDirs          int
-	suppressionCache   *queued_set.QueuedSet
-	suppressionEnabled bool
+	Prefix    string
+	Appenders []Appender
+	StripDirs int
 }
 
 // Log a message and a level to a logger instance. This returns a
@@ -107,18 +104,6 @@ func (self *Logger) LogfWithContext(level Level, messageFmt string, context *Con
 
 func (self *Logger) LogfWithErrorCodeAndContext(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	return self.logf(level, errorCode, messageFmt, context, args...)
-}
-
-func (self *Logger) DisableLogSuppression() {
-	self.suppressionEnabled = false
-	self.suppressionCache = nil
-	return
-}
-
-func (self *Logger) EnableLogSuppression(historyCapacity int) {
-	self.suppressionCache = queued_set.New(historyCapacity)
-	self.suppressionEnabled = true
-	return
 }
 
 // Log and return a formatted error string.
@@ -159,10 +144,6 @@ func (self *Logger) Flush() (errors []error) {
 		}
 	}
 	return
-}
-
-func (self *Logger) IsSuppressionEnabled() bool {
-	return self.suppressionEnabled
 }
 
 // Stackf is designed to work in tandem with `NewStackError`. This
@@ -248,12 +229,10 @@ func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, co
 		Context:    context,
 	}
 
-	if !self.suppressionEnabled || self.suppressionCache.Add(log.stringWithoutTime()) {
-		for _, appender := range self.Appenders {
-			if err := appender.Append(log); err != nil {
-				error := fmt.Errorf("Error appending. Appender: %T Error: %v", appender, err)
-				errors = append(errors, error)
-			}
+	for _, appender := range self.Appenders {
+		if err := appender.Append(log); err != nil {
+			error := fmt.Errorf("Error appending. Appender: %T Error: %v", appender, err)
+			errors = append(errors, error)
 		}
 	}
 

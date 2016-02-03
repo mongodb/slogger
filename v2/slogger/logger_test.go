@@ -285,19 +285,6 @@ func TestStacktracing(test *testing.T) {
 	}
 }
 
-func TestSuppression(t *testing.T) {
-	logBuffer := new(bytes.Buffer)
-	logger := &Logger{
-		Prefix:    "slogger.logger_test",
-		Appenders: []Appender{NewStringAppender(logBuffer)},
-	}
-
-	assertDisabledLogSuppressionWorks(t, logger, logBuffer)
-	assertEnabledLogSuppressionWorks(t, logger, logBuffer)
-	assertDisabledLogSuppressionWorks(t, logger, logBuffer)
-	assertEnabledLogSuppressionWorks(t, logger, logBuffer)
-}
-
 func TestContext(t *testing.T) {
 	ctxt := NewContext()
 	ctxt.Add("foo", "bar")
@@ -328,22 +315,6 @@ func TestContext(t *testing.T) {
 	if found {
 		t.Fatalf("Expected \"biz\" to not be in ctxt.  ctxt: %v", ctxt)
 	}
-}
-
-func assertDisabledLogSuppressionWorks(t *testing.T, logger *Logger, logBuffer *bytes.Buffer) {
-	logger.DisableLogSuppression()
-	assertLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
-	assertLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
-	assertLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
-	assertLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
-}
-
-func assertEnabledLogSuppressionWorks(t *testing.T, logger *Logger, logBuffer *bytes.Buffer) {
-	logger.EnableLogSuppression(100)
-	assertLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
-	assertLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
-	denyLoggingOccurred(t, logBuffer, func() { logHelloWorld(logger) })
-	denyLoggingOccurred(t, logBuffer, func() { logHelloMongoDB(logger) })
 }
 
 func assertLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) {
