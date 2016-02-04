@@ -71,20 +71,6 @@ func (self *Log) Message() string {
 	return fmt.Sprintf(self.MessageFmt, self.Args...)
 }
 
-// for use as a cache key
-func (self *Log) stringWithoutTime() string {
-	return fmt.Sprintf(
-		"%s %v %d %s %s %d %s",
-		self.Prefix,
-		self.Level.Type(),
-		self.ErrorCode,
-		self.Filename,
-		self.FuncName,
-		self.Line,
-		self.Message(),
-	)
-}
-
 type Logger struct {
 	Prefix       string
 	Appenders    []Appender
@@ -207,7 +193,6 @@ func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 	return 0, "", 0, false
 }
 
-// accepts a Context or *Context as the first element of args
 func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	var errors []error
 
