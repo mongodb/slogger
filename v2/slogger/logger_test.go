@@ -83,50 +83,6 @@ func TestLog(test *testing.T) {
 	}
 }
 
-func TestCopy(test *testing.T) {
-	CapLogCache(10)
-
-	logger := &Logger{
-		Prefix:    "agent.OplogTail",
-		Appenders: []Appender{},
-	}
-
-	logger.Logf(INFO, "0")
-	logger.Logf(INFO, "1")
-	logger.Logf(DEBUG, "2")
-	logger.Logf(DEBUG, "3")
-	logger.Logf(WARN, "4")
-	logger.Logf(DEBUG, "5")
-	logger.Logf(INFO, "6")
-
-	for idx, log := range Cache.Copy() {
-		expected := fmt.Sprintf("%d", idx)
-		if expected != log.Message() {
-			test.Errorf("Mismatch message. Idx: %d expected: `%v`", idx, expected)
-		}
-
-		//fmt.Printf("#%d: %v", idx, FormatLog(log))
-	}
-
-	CapLogCache(5)
-	logger.Logf(INFO, "0")
-	logger.Logf(INFO, "1")
-	logger.Logf(DEBUG, "2")
-	logger.Logf(DEBUG, "3")
-	logger.Logf(WARN, "4")
-	logger.Logf(DEBUG, "5")
-	logger.Logf(INFO, "6")
-
-	for idx, log := range Cache.Copy() {
-		expected := fmt.Sprintf("%d", idx+2)
-		if expected != log.Message() {
-			test.Errorf("Mismatch message. Idx: %d expected: `%v`", idx, expected)
-		}
-
-		//fmt.Printf("#%d: %v", idx, FormatLog(log))
-	}
-}
-
 type countingAppender struct {
 	count int
 }
@@ -141,8 +97,6 @@ func (self *countingAppender) Flush() error {
 }
 
 func TestFilter(test *testing.T) {
-	CapLogCache(10)
-
 	counter := &countingAppender{}
 	logger := &Logger{
 		Prefix:    "agent.OplogTail",
@@ -158,12 +112,6 @@ func TestFilter(test *testing.T) {
 		test.Errorf("Expected two logs to pass through the filter to the appender. Received: %d",
 			counter.count)
 	}
-
-	// disabled caching for now -Tim
-	// cache := Cache.Copy()
-	// if len(cache) != 4 {
-	// 	test.Errorf("Expected all logs to be cached. Received: %d", len(cache))
-	// }
 }
 
 func TestStacktrace(test *testing.T) {
