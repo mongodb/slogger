@@ -50,14 +50,15 @@ type RollingFileAppender struct {
 // rotated logs allowed before old logs are deleted.  If
 // rotateIfExists is set to true and a log file with the same filename
 // already exists, then the current one will be rotated.  If
-// rotateIfExists is set to true and a log file with the same filename
-// already exists, then the current log file will be appended to.  If
-// a log file with the same filename does not exist, then a new log
-// file is created regardless of the value of rotateIfExists.  As
-// RotatingFileAppender is asynchronous, an errHandler can be provided
-// that will be called when an error occurs.  It can set to nil if you
-// do not want to provide one.  The return value headerGenerator, if
-// not nil, is logged at the beginning of every log file.
+// rotateIfExists is set to false and a log file with the same
+// filename already exists, then the current log file will be appended
+// to.  If a log file with the same filename does not exist, then a
+// new log file is created regardless of the value of rotateIfExists.
+// As RotatingFileAppender might be wrapped by an AsyncAppender, an
+// errHandler can be provided that will be called when an error
+// occurs.  It can set to nil if you do not want to provide one.  The
+// return value headerGenerator, if not nil, is logged at the
+// beginning of every log file.
 //
 // Note that after creating a RollingFileAppender with New(), you will
 // probably want to defer a call to RollingFileAppender's Close() (or
@@ -443,7 +444,7 @@ func extractRotationTimeFromFilename(filename string) (*RotationTime, error) {
 		)
 	}
 
-	var serial int
+	serial := 0
 	if match[3] != "" {
 		serial, err = strconv.Atoi(match[3])
 

@@ -13,12 +13,6 @@
 // limitations under the License.
 //
 
-// A level filter appender that retains logs (regardless of log
-// levels).  Upon calling AppendRetainedLogs(category), all logs
-// retained for the specified category are sent through.  This is
-// useful for logging prior log messages of all log levels after
-// entering an error state.
-
 package retaining_level_filter_appender
 
 import (
