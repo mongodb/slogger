@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,7 @@ type RollingFileAppender struct {
 	curFileSize          int64
 	headerGenerator      func() []string
 	stringWriterCallback func(*os.File) slogger.StringWriter
+	lock                 sync.Mutex
 }
 
 // New creates a new RollingFileAppender.  filename is path to the
@@ -116,6 +118,8 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxRotatedLogs int,
 }
 
 func (self *RollingFileAppender) Append(log *slogger.Log) error {
+	self.lock.Lock()
+	defer self.lock.Unlock()
 	n, err := self.appendSansSizeTracking(log)
 	self.curFileSize += int64(n)
 
