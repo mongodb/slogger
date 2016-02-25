@@ -1,4 +1,4 @@
-// Copyright 2013 MongoDB, Inc.
+// Copyright 2013 - 2015 MongoDB, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,32 +22,45 @@ import (
 
 type Appender interface {
 	Append(log *Log) error
+	Flush() error
 }
 
 func FormatLog(log *Log) string {
 	year, month, day := log.Timestamp.Date()
 	hour, min, sec := log.Timestamp.Clock()
+	millisec := log.Timestamp.Nanosecond() / 1000000
 
-	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d] [%v.%v] [%v:%d] %v\n",
+	errorCodeStr := ""
+	if log.ErrorCode != NoErrorCode {
+		errorCodeStr += fmt.Sprintf("[%v] ", log.ErrorCode)
+	}
+
+	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d] [%v.%v] [%v:%v:%d] %v%v\n",
 		year, month, day,
 		hour, min, sec,
+		millisec,
 		log.Prefix, log.Level.Type(),
-		log.Filename, log.Line,
+		log.Filename, log.FuncName, log.Line,
+		errorCodeStr,
 		log.Message())
 }
 
-type WriteStringer interface {
-	WriteString(str string) (int, error)
+type StringWriter interface {
+	WriteString(s string) (ret int, err error)
+	Sync() error
 }
 
-// WriteStringer is implemented by *os.File.
 type FileAppender struct {
-	WriteStringer
+	StringWriter
 }
 
 func (self FileAppender) Append(log *Log) error {
 	_, err := self.WriteString(FormatLog(log))
 	return err
+}
+
+func (self FileAppender) Flush() error {
+	return self.Sync()
 }
 
 func StdOutAppender() *FileAppender {
@@ -80,6 +93,10 @@ func (self StringAppender) Append(log *Log) error {
 	return err
 }
 
+func (self StringAppender) Flush() error {
+	return nil
+}
+
 // Return true if the log should be passed to the underlying
 // `Appender`
 type Filter func(log *Log) bool
@@ -94,6 +111,10 @@ func (self *FilterAppender) Append(log *Log) error {
 	}
 
 	return self.Appender.Append(log)
+}
+
+func (self *FilterAppender) Flush() error {
+	return self.Appender.Flush()
 }
 
 func LevelFilter(threshold Level, appender Appender) *FilterAppender {

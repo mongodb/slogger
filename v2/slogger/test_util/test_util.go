@@ -1,4 +1,4 @@
-// Copyright 2014 MongoDB, Inc.
+// Copyright 2013 MongoDB, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package slogger
+// Package rolling_file_appender provides a slogger Appender that
+// supports log rotation.
 
-// enables level-filtering before a Log entry is created, avoiding the runtime.Caller invocation
-// return true if filter evaluation should continue
-type TurboFilter func(level Level, messageFmt string, args ...interface{}) bool
+package test_util
 
-func TurboLevelFilter(threshold Level) func(Level, string, ...interface{}) bool {
-	return func(level Level, messageFmt string, args ...interface{}) bool {
-		return level >= threshold
+import "testing"
+
+func AssertNoErrors(test *testing.T, errs []error) {
+	if len(errs) != 0 {
+		test.Errorf("Expected to be empty: %v", errs)
 	}
 }
