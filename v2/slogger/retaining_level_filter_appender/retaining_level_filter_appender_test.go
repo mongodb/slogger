@@ -16,8 +16,8 @@
 package retaining_level_filter_appender
 
 import (
-	"github.com/tolsen/slogger/v2/slogger"
-	tu "github.com/tolsen/slogger/v2/slogger/test_util"
+	"github.com/mongodb/slogger/v2/slogger"
+	tu "github.com/mongodb/slogger/v2/slogger/test_util"
 
 	"bytes"
 	"strings"

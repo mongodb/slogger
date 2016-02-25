@@ -15,8 +15,8 @@
 package rolling_file_appender
 
 import (
-	"github.com/tolsen/slogger/v2/slogger"
-	. "github.com/tolsen/slogger/v2/slogger/test_util"
+	"github.com/mongodb/slogger/v2/slogger"
+	. "github.com/mongodb/slogger/v2/slogger/test_util"
 	"io/ioutil"
 	"os"
 	"strings"

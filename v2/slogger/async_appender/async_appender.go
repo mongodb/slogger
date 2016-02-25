@@ -17,7 +17,7 @@
 
 package async_appender
 
-import "github.com/tolsen/slogger/v2/slogger"
+import "github.com/mongodb/slogger/v2/slogger"
 
 type AsyncAppender struct {
 	Appender   slogger.Appender

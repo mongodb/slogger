@@ -165,7 +165,7 @@ func IgnoreThisFilenameToo(fn string) {
 func baseFuncNameForPC(pc uintptr) string {
 	fullFuncName := runtime.FuncForPC(pc).Name()
 
-	// strip github.com/tolsen/slogger/v2slogger.BaseFuncNameForPC down to BaseFuncNameForPC
+	// strip github.com/mongodb/slogger/v2slogger.BaseFuncNameForPC down to BaseFuncNameForPC
 	periodIndex := strings.LastIndex(fullFuncName, ".")
 	if periodIndex >= 0 {
 		return fullFuncName[(periodIndex + 1):]

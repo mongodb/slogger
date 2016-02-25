@@ -22,7 +22,7 @@
 package retaining_level_filter_appender
 
 import (
-	"github.com/tolsen/slogger/v2/slogger"
+	"github.com/mongodb/slogger/v2/slogger"
 
 	"sync"
 )

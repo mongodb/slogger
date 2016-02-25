@@ -19,7 +19,7 @@ package rolling_file_appender
 
 import (
 	"fmt"
-	"github.com/tolsen/slogger/v2/slogger"
+	"github.com/mongodb/slogger/v2/slogger"
 	"os"
 	"path/filepath"
 	"regexp"
