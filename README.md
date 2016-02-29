@@ -81,6 +81,14 @@ Other appenders include an AsyncAppender, a
 RetainingLevelFilterAppender, and a RollingFileAppender.  See the code
 for details.
 
+## Contributing
+
+1. Sign the [MongoDB Contributor Agreement|https://www.mongodb.com/legal/contributor-agreement].
+2. Fork the repository.
+3. Make your changes.
+4. Ensure that the tests pass by running `./run-tests`.
+5. Submit a pull request.
+
 ## License
 
 Slogger is made available under the Apache License version 2.
