@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# keep sorted!
+DIRS="\
+v1/slogger \
+v2/slogger \
+v2/slogger/async_appender \
+v2/slogger/queue \
+v2/slogger/retaining_level_filter_appender \
+v2/slogger/rolling_file_appender \
+"
+
+for i in $DIRS; do
+    echo TESTING $i
+    cd $i
+    go test
+    cd -
+    echo
+done
