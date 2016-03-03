@@ -159,7 +159,10 @@ func (self *RollingFileAppender) Append(log *slogger.Log) error {
 		return err
 	}
 
-	if self.maxFileSize > 0 && self.curFileSize > self.maxFileSize {
+	if (self.maxFileSize > 0 && self.curFileSize > self.maxFileSize) ||
+		(self.maxDuration > 0 &&
+			self.state != nil &&
+			time.Since(self.state.LogStartTime) > self.maxDuration) {
 		return self.rotate()
 	}
 
