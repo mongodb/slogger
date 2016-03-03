@@ -126,6 +126,19 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 			appender.curFileSize = fileInfo.Size()
 		}
 
+		stateExistsVar, err := stateExists(appender.statePath())
+		if err != nil {
+			appender.file.Close()
+			return nil, err
+		}
+
+		if !stateExistsVar {
+			if err = appender.stampStartTime(); err != nil {
+				appender.file.Close()
+				return nil, err
+			}
+		}
+
 		return appender, appender.logHeader()
 	}
 }
@@ -306,6 +319,11 @@ func (self *RollingFileAppender) rotate() error {
 	self.file = file
 	self.logHeader()
 
+	// stamp start time
+	if err = self.stampStartTime(); err != nil {
+		return err
+	}
+
 	// remove really old logs
 	self.removeMaxRotatedLogs()
 
@@ -329,4 +347,12 @@ func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) 
 	}
 
 	return rotationTimes, nil
+}
+
+func (self *RollingFileAppender) stampStartTime() error {
+	state := newState(time.Now())
+	if err := state.write(self.statePath()); err != nil {
+		return err
+	}
+	return nil
 }

@@ -137,3 +137,21 @@ func IsDecodeError(err error) bool {
 	_, ok := err.(DecodeError)
 	return ok
 }
+
+type StatError struct {
+	Filename string
+	Err      error
+}
+
+func (self StatError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to stat %s: %s",
+		self.Filename,
+		self.Err.Error(),
+	)
+}
+
+func IsStatError(err error) bool {
+	_, ok := err.(StatError)
+	return ok
+}

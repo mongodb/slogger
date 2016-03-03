@@ -20,6 +20,7 @@ func readState(path string) (*state, error) {
 	if err != nil {
 		return nil, OpenError{path, err}
 	}
+	defer file.Close()
 
 	var decodedState *state
 	decoder := json.NewDecoder(file)
@@ -28,6 +29,18 @@ func readState(path string) (*state, error) {
 	}
 
 	return decodedState, nil
+}
+
+func stateExists(path string) (bool, error) {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, StatError{path, err}
+	}
+
+	return true, nil
 }
 
 func (self *state) write(path string) error {

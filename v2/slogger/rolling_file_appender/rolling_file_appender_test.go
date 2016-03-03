@@ -188,7 +188,14 @@ func numLogFiles() (int, error) {
 		return -1, err
 	}
 
-	return len(filenames), nil
+	visibleFilenames := make([]string, 0, len(filenames)-1)
+	for _, filename := range filenames {
+		if !strings.HasPrefix(filename, ".") {
+			visibleFilenames = append(visibleFilenames, filename)
+		}
+	}
+
+	return len(visibleFilenames), nil
 }
 
 func readCurrentLog(test *testing.T) string {
