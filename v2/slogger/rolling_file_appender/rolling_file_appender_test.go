@@ -17,10 +17,12 @@ package rolling_file_appender
 import (
 	"github.com/mongodb/slogger/v2/slogger"
 	. "github.com/mongodb/slogger/v2/slogger/test_util"
+
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 const rfaTestLogDir = "log"
@@ -29,7 +31,7 @@ const rfaTestLogPath = rfaTestLogDir + "/" + rfaTestLogFilename
 
 func TestLog(test *testing.T) {
 	defer teardown()
-	appender, logger := setup(test, 1000, 10, false)
+	appender, logger := setup(test, 1000, 0, 10, false)
 	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is a log message")
@@ -42,7 +44,7 @@ func TestLog(test *testing.T) {
 func TestNoRotation(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 1000, 10, false)
+	appender, logger := setup(test, 1000, 0, 10, false)
 	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is under 1,000 characters and should not cause a log rotation")
@@ -55,7 +57,7 @@ func TestNoRotation(test *testing.T) {
 func TestNoRotation2(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, -1, 10, false)
+	appender, logger := setup(test, -1, 0, 10, false)
 	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This should not cause a log rotation")
@@ -68,7 +70,7 @@ func TestNoRotation2(test *testing.T) {
 func TestOldLogRemoval(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 10, 2, false)
+	appender, logger := setup(test, 10, 0, 2, false)
 	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
@@ -100,16 +102,16 @@ func TestPreRotation(test *testing.T) {
 		test.Fatalf("Failed to close logfile: %v", err)
 	}
 
-	appender, logger := newAppenderAndLogger(test, 1000, 2, true)
+	appender, logger := newAppenderAndLogger(test, 1000, 0, 2, true)
 	defer appender.Close()
 	AssertNoErrors(test, logger.Flush())
 	assertNumLogFiles(test, 2)
 }
 
-func TestRotation(test *testing.T) {
+func TestRotationSizeBased(test *testing.T) {
 	defer teardown()
 
-	appender, logger := setup(test, 10, 10, false)
+	appender, logger := setup(test, 10, 0, 10, false)
 	defer appender.Close()
 
 	_, errs := logger.Logf(slogger.WARN, "This is more than 10 characters and should cause a log rotation")
@@ -117,6 +119,23 @@ func TestRotation(test *testing.T) {
 	AssertNoErrors(test, logger.Flush())
 
 	assertNumLogFiles(test, 2)
+}
+
+func TestRotationTimeBased(test *testing.T) {
+	defer teardown()
+	appender, logger := setup(test, -1, time.Second, 10, false)
+	defer appender.Close()
+
+	assertNumLogFiles(test, 1)
+	time.Sleep(time.Second + 50*time.Millisecond)
+	_, errs := logger.Logf(slogger.WARN, "Trigger log rotation 1")
+	AssertNoErrors(test, errs)
+	assertNumLogFiles(test, 2)
+
+	time.Sleep(time.Second + 50*time.Millisecond)
+	_, errs = logger.Logf(slogger.WARN, "Trigger log rotation 2")
+	AssertNoErrors(test, errs)
+	assertNumLogFiles(test, 3)
 }
 
 func assertCurrentLogContains(test *testing.T, expected string) {
@@ -151,11 +170,11 @@ func createLogDir(test *testing.T) {
 	}
 }
 
-func newAppenderAndLogger(test *testing.T, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool) (appender *RollingFileAppender, logger *slogger.Logger) {
+func newAppenderAndLogger(test *testing.T, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool) (appender *RollingFileAppender, logger *slogger.Logger) {
 	appender, err := New(
 		rfaTestLogPath,
 		maxFileSize,
-		0,
+		maxDuration,
 		maxRotatedLogs,
 		rotateIfExists,
 		func() []string {
@@ -207,10 +226,10 @@ func readCurrentLog(test *testing.T) string {
 	return string(bytes)
 }
 
-func setup(test *testing.T, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool) (appender *RollingFileAppender, logger *slogger.Logger) {
+func setup(test *testing.T, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool) (appender *RollingFileAppender, logger *slogger.Logger) {
 	createLogDir(test)
 
-	return newAppenderAndLogger(test, maxFileSize, maxRotatedLogs, rotateIfExists)
+	return newAppenderAndLogger(test, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists)
 }
 
 func teardown() {
