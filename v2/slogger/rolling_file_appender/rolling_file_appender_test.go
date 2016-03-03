@@ -138,6 +138,24 @@ func TestRotationTimeBased(test *testing.T) {
 	assertNumLogFiles(test, 3)
 }
 
+func TestRotationManual(test *testing.T) {
+	defer teardown()
+	appender, _ := setup(test, -1, 0, 10, false)
+	defer appender.Close()
+
+	assertNumLogFiles(test, 1)
+
+	if err := appender.Rotate(); err != nil {
+		test.Fatal("appender.Rotate() return an error: " + err.Error())
+	}
+	assertNumLogFiles(test, 2)
+
+	if err := appender.Rotate(); err != nil {
+		test.Fatal("appender.Rotate() return an error: " + err.Error())
+	}
+	assertNumLogFiles(test, 3)
+}
+
 func assertCurrentLogContains(test *testing.T, expected string) {
 	actual := readCurrentLog(test)
 

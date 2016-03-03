@@ -187,6 +187,13 @@ func (self *RollingFileAppender) Flush() error {
 	return self.file.Sync()
 }
 
+func (self *RollingFileAppender) Rotate() error {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	return self.rotate()
+}
+
 func rotatedFilename(baseFilename string, t time.Time, serial int) string {
 	filename := fmt.Sprintf(
 		"%s.%d-%02d-%02dT%02d-%02d-%02d",
