@@ -23,9 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -80,11 +78,11 @@ type RollingFileAppender struct {
 // probably want to defer a call to RollingFileAppender's Close() (or
 // at least Flush()).  This ensures that in case of program exit
 // (normal or panicking) that any pending logs are logged.
-func New(filename string, maxFileSize int64, maxDuration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
-	return NewWithStringWriter(filename, maxFileSize, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
+func New(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
+	return NewWithStringWriter(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
 }
 
-func NewWithStringWriter(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
+func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
 	if headerGenerator == nil {
 		headerGenerator = func() []string {
 			return []string{}
@@ -143,7 +141,7 @@ func (self *RollingFileAppender) Append(log *slogger.Log) error {
 		return err
 	}
 
-	if self.MaxFileSize > 0 && self.curFileSize > self.MaxFileSize {
+	if self.maxFileSize > 0 && self.curFileSize > self.maxFileSize {
 		return self.rotate()
 	}
 
@@ -154,7 +152,7 @@ func (self *RollingFileAppender) Close() error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	err := self.Flush()
+	err := self.file.Sync()
 	if err != nil {
 		return err
 	}
@@ -229,7 +227,7 @@ func (self *RollingFileAppender) logHeader() error {
 }
 
 func (self *RollingFileAppender) removeMaxRotatedLogs() error {
-	if self.MaxRotatedLogs <= 0 {
+	if self.maxRotatedLogs <= 0 {
 		return nil
 	}
 
@@ -239,7 +237,7 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() error {
 		return MinorRotationError{err}
 	}
 
-	numLogsToDelete := len(rotationTimes) - self.MaxRotatedLogs
+	numLogsToDelete := len(rotationTimes) - self.maxRotatedLogs
 
 	// return if we're under the limit
 	if numLogsToDelete <= 0 {

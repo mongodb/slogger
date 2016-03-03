@@ -155,6 +155,7 @@ func newAppenderAndLogger(test *testing.T, maxFileSize int64, maxRotatedLogs int
 	appender, err := New(
 		rfaTestLogPath,
 		maxFileSize,
+		0,
 		maxRotatedLogs,
 		rotateIfExists,
 		func() []string {

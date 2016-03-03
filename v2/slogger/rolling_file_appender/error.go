@@ -1,5 +1,9 @@
 package rolling_file_appender
 
+import (
+	"fmt"
+)
+
 type CloseError struct {
 	Filename string
 	Err      error

@@ -1,5 +1,12 @@
 package rolling_file_appender
 
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"time"
+)
+
 type RotationTime struct {
 	Time     time.Time
 	Serial   int
