@@ -146,12 +146,12 @@ func TestRotationManual(test *testing.T) {
 	assertNumLogFiles(test, 1)
 
 	if err := appender.Rotate(); err != nil {
-		test.Fatal("appender.Rotate() return an error: " + err.Error())
+		test.Fatal("appender.Rotate() returned an error: " + err.Error())
 	}
 	assertNumLogFiles(test, 2)
 
 	if err := appender.Rotate(); err != nil {
-		test.Fatal("appender.Rotate() return an error: " + err.Error())
+		test.Fatal("appender.Rotate() returned an error: " + err.Error())
 	}
 	assertNumLogFiles(test, 3)
 }
