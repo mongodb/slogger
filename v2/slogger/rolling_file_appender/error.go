@@ -101,3 +101,39 @@ func IsWriteError(err error) bool {
 	_, ok := err.(WriteError)
 	return ok
 }
+
+type EncodeError struct {
+	Filename string
+	Err      error
+}
+
+func (self EncodeError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to encode state to %s: %s",
+		self.Filename,
+		self.Err.Error(),
+	)
+}
+
+func IsEncodeError(err error) bool {
+	_, ok := err.(EncodeError)
+	return ok
+}
+
+type DecodeError struct {
+	Filename string
+	Err      error
+}
+
+func (self DecodeError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to decode state from %s: %s",
+		self.Filename,
+		self.Err.Error(),
+	)
+}
+
+func IsDecodeError(err error) bool {
+	_, ok := err.(DecodeError)
+	return ok
+}

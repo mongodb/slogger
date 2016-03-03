@@ -330,9 +330,3 @@ func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) 
 
 	return rotationTimes, nil
 }
-
-func (self *RollingFileAppender) statePath() string {
-	// TODO: Port this to Windows so that the file is hidden there
-	newBase := ".slogger-state-" + filepath.Base(self.absPath)
-	return filepath.Join(filepath.Dir(self.absPath), newBase)
-}
