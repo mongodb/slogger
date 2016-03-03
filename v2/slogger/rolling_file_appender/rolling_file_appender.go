@@ -38,6 +38,7 @@ type RollingFileAppender struct {
 	headerGenerator      func() []string
 	stringWriterCallback func(*os.File) slogger.StringWriter
 	lock                 sync.Mutex
+	state                *state
 }
 
 // New creates a new RollingFileAppender.
@@ -132,7 +133,11 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 			return nil, err
 		}
 
-		if !stateExistsVar {
+		if stateExistsVar {
+			if err = appender.loadState(); err != nil {
+				return nil, err
+			}
+		} else {
 			if err = appender.stampStartTime(); err != nil {
 				appender.file.Close()
 				return nil, err
@@ -349,10 +354,21 @@ func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) 
 	return rotationTimes, nil
 }
 
+func (self *RollingFileAppender) loadState() error {
+	state, err := readState(self.statePath())
+	if err != nil {
+		return err
+	}
+
+	self.state = state
+	return nil
+}
+
 func (self *RollingFileAppender) stampStartTime() error {
 	state := newState(time.Now())
 	if err := state.write(self.statePath()); err != nil {
 		return err
 	}
+	self.state = state
 	return nil
 }
