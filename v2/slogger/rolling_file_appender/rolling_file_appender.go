@@ -135,6 +135,7 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 
 		if stateExistsVar {
 			if err = appender.loadState(); err != nil {
+				appender.file.Close()
 				return nil, err
 			}
 		} else {
