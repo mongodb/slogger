@@ -17,7 +17,6 @@ package slogger
 import (
 	"errors"
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -325,12 +324,12 @@ func (self *StackError) Error() string {
 
 func stripDirectories(filepath string, toKeep int) string {
 	var idxCutoff int
-	if idxCutoff = strings.LastIndex(filepath, string(os.PathSeparator)); idxCutoff == -1 {
+	if idxCutoff = strings.LastIndex(filepath, string('/')); idxCutoff == -1 {
 		return filepath
 	}
 
 	for dirToKeep := 0; dirToKeep < toKeep; dirToKeep++ {
-		switch idx := strings.LastIndex(filepath[:idxCutoff], string(os.PathSeparator)); idx {
+		switch idx := strings.LastIndex(filepath[:idxCutoff], string('/')); idx {
 		case -1:
 			break
 		default:
