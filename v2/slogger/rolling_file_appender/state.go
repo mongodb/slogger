@@ -44,8 +44,7 @@ func stateExists(path string) (bool, error) {
 }
 
 func (self *state) write(path string) error {
-	// TODO: On windows we should make the file hidden
-	file, err := os.Create(path)
+	file, err := createHidden(path)
 	if err != nil {
 		return OpenError{path, err}
 	}
@@ -60,7 +59,6 @@ func (self *state) write(path string) error {
 }
 
 func (self *RollingFileAppender) statePath() string {
-	// TODO: Port this to Windows so that the file is hidden there
 	newBase := ".slogger-state-" + filepath.Base(self.absPath)
 	return filepath.Join(filepath.Dir(self.absPath), newBase)
 }
