@@ -18,59 +18,90 @@
 package rolling_file_appender
 
 import (
-	"fmt"
 	"github.com/mongodb/slogger/v2/slogger"
+
+	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 )
 
 type RollingFileAppender struct {
-	MaxFileSize          int64
-	MaxRotatedLogs       int
-	file                 *os.File
+	// These fields should not need to change
+	maxFileSize          int64
+	maxDuration          time.Duration
+	maxRotatedLogs       int
 	absPath              string
-	curFileSize          int64
 	headerGenerator      func() []string
 	stringWriterCallback func(*os.File) slogger.StringWriter
-	lock                 sync.Mutex
+
+	lock sync.Mutex
+
+	// These fields can change and the lock should be held when
+	// reading or writing to them after construction of the
+	// RollingFileAppender struct
+	file        *os.File
+	curFileSize int64
+
+	// state holds "state" that is written to disk in a hidden state
+	// file.  Not all "state" needs to go in here.  For example, the
+	// current file size can be determined by a stat system call on
+	// the file.  This state pointer should always be non-nil.  The
+	// lock should also be held when reading or writing to state.
+	state *state
 }
 
-// New creates a new RollingFileAppender.  filename is path to the
-// file to log to.  It can be a relative path (with respect to the
-// current working directory) or an absolute path.  maxFileSize is the
-// approximate file size that will be allowed before the log file is
-// rotated.  Rotated log files will have suffix of the form
-// .YYYY-MM-DDTHH-MM-SS or .YYYY-MM-DDTHH-MM-SS-N (where N is an
-// incrementing serial number used to resolve conflicts) appended to
-// them.  Set maxFileSize to a non-positive number if you wish there
-// to be no limit.  maxRotatedLogs specifies the maximum number of
-// rotated logs allowed before old logs are deleted.  If
-// rotateIfExists is set to true and a log file with the same filename
-// already exists, then the current one will be rotated.  If
+// New creates a new RollingFileAppender.
+//
+// filename is path to the file to log to.  It can be a relative path
+// (with respect to the current working directory) or an absolute
+// path.
+//
+// maxFileSize is the approximate file size that will be allowed
+// before the log file is rotated.  Rotated log files will have suffix
+// of the form .YYYY-MM-DDTHH-MM-SS or .YYYY-MM-DDTHH-MM-SS-N (where N
+// is an incrementing serial number used to resolve conflicts)
+// appended to them.  Set maxFileSize to a non-positive number if you
+// wish there to be no limit.
+//
+// maxDuration is how long to wait before rotating the log file.  Set
+// to 0 if you do not want log rotation to be time-based.
+//
+// If both maxFileSize and maxDuration are set than the log file will
+// be rotated whenever either threshold is met.  The duration used to
+// determine whether a log file should be rotated (that is, the
+// duration compared to maxDuration) is reset regardless of why the
+// log was rotated previously.
+//
+// maxRotatedLogs specifies the maximum number of rotated logs allowed
+// before old logs are deleted.  Set to a non-positive number if you
+// do not want old log files to be deleted.
+//
+// If rotateIfExists is set to true and a log file with the same
+// filename already exists, then the current one will be rotated.  If
 // rotateIfExists is set to false and a log file with the same
 // filename already exists, then the current log file will be appended
 // to.  If a log file with the same filename does not exist, then a
 // new log file is created regardless of the value of rotateIfExists.
+//
 // As RotatingFileAppender might be wrapped by an AsyncAppender, an
 // errHandler can be provided that will be called when an error
-// occurs.  It can set to nil if you do not want to provide one.  The
-// return value headerGenerator, if not nil, is logged at the
+// occurs.  It can set to nil if you do not want to provide one.
+//
+// The return value headerGenerator, if not nil, is logged at the
 // beginning of every log file.
 //
 // Note that after creating a RollingFileAppender with New(), you will
 // probably want to defer a call to RollingFileAppender's Close() (or
 // at least Flush()).  This ensures that in case of program exit
 // (normal or panicking) that any pending logs are logged.
-func New(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
-	return NewWithStringWriter(filename, maxFileSize, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
+func New(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
+	return NewWithStringWriter(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
 }
 
-func NewWithStringWriter(filename string, maxFileSize int64, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
+func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
 	if headerGenerator == nil {
 		headerGenerator = func() []string {
 			return []string{}
@@ -88,8 +119,9 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxRotatedLogs int,
 	}
 
 	appender := &RollingFileAppender{
-		MaxFileSize:          maxFileSize,
-		MaxRotatedLogs:       maxRotatedLogs,
+		maxFileSize:          maxFileSize,
+		maxDuration:          maxDuration,
+		maxRotatedLogs:       maxRotatedLogs,
 		absPath:              absPath,
 		headerGenerator:      headerGenerator,
 		stringWriterCallback: stringWriterCallback,
@@ -113,6 +145,24 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxRotatedLogs int,
 			appender.curFileSize = fileInfo.Size()
 		}
 
+		stateExistsVar, err := stateExists(appender.statePath())
+		if err != nil {
+			appender.file.Close()
+			return nil, err
+		}
+
+		if stateExistsVar {
+			if err = appender.loadState(); err != nil {
+				appender.file.Close()
+				return nil, err
+			}
+		} else {
+			if err = appender.stampStartTime(); err != nil {
+				appender.file.Close()
+				return nil, err
+			}
+		}
+
 		return appender, appender.logHeader()
 	}
 }
@@ -120,6 +170,7 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxRotatedLogs int,
 func (self *RollingFileAppender) Append(log *slogger.Log) error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
+
 	n, err := self.appendSansSizeTracking(log)
 	self.curFileSize += int64(n)
 
@@ -127,7 +178,10 @@ func (self *RollingFileAppender) Append(log *slogger.Log) error {
 		return err
 	}
 
-	if self.MaxFileSize > 0 && self.curFileSize > self.MaxFileSize {
+	if (self.maxFileSize > 0 && self.curFileSize > self.maxFileSize) ||
+		(self.maxDuration > 0 &&
+			self.state != nil &&
+			time.Since(self.state.LogStartTime) > self.maxDuration) {
 		return self.rotate()
 	}
 
@@ -135,15 +189,32 @@ func (self *RollingFileAppender) Append(log *slogger.Log) error {
 }
 
 func (self *RollingFileAppender) Close() error {
-	err := self.Flush()
-	if err != nil {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	if err := self.file.Sync(); err != nil {
 		return err
 	}
-	return self.file.Close()
+
+	if err := self.file.Close(); err != nil {
+		return &CloseError{self.absPath, err}
+	}
+
+	return nil
 }
 
 func (self *RollingFileAppender) Flush() error {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
 	return self.file.Sync()
+}
+
+func (self *RollingFileAppender) Rotate() error {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	return self.rotate()
 }
 
 func rotatedFilename(baseFilename string, t time.Time, serial int) string {
@@ -207,13 +278,17 @@ func (self *RollingFileAppender) logHeader() error {
 }
 
 func (self *RollingFileAppender) removeMaxRotatedLogs() error {
+	if self.maxRotatedLogs <= 0 {
+		return nil
+	}
+
 	rotationTimes, err := self.rotationTimeSlice()
 
 	if err != nil {
 		return MinorRotationError{err}
 	}
 
-	numLogsToDelete := len(rotationTimes) - self.MaxRotatedLogs
+	numLogsToDelete := len(rotationTimes) - self.maxRotatedLogs
 
 	// return if we're under the limit
 	if numLogsToDelete <= 0 {
@@ -282,6 +357,11 @@ func (self *RollingFileAppender) rotate() error {
 	self.file = file
 	self.logHeader()
 
+	// stamp start time
+	if err = self.stampStartTime(); err != nil {
+		return err
+	}
+
 	// remove really old logs
 	self.removeMaxRotatedLogs()
 
@@ -307,159 +387,21 @@ func (self *RollingFileAppender) rotationTimeSlice() (RotationTimeSlice, error) 
 	return rotationTimes, nil
 }
 
-type CloseError struct {
-	Filename string
-	Err      error
-}
-
-func (self CloseError) Error() string {
-	return fmt.Sprintf(
-		"rolling_file_appender: Failed to close %s: %s",
-		self.Filename,
-		self.Err.Error(),
-	)
-}
-
-func IsCloseError(err error) bool {
-	_, ok := err.(CloseError)
-	return ok
-}
-
-type MinorRotationError struct {
-	Err error
-}
-
-func (self MinorRotationError) Error() string {
-	return ("rolling_file_appender: minor error while rotating logs: " + self.Err.Error())
-}
-
-func IsMinorRotationError(err error) bool {
-	_, ok := err.(MinorRotationError)
-	return ok
-}
-
-type NoFileError struct{}
-
-func (NoFileError) Error() string {
-	return "rolling_file_appender: No log file to write to"
-}
-
-func IsNoFileError(err error) bool {
-	_, ok := err.(NoFileError)
-	return ok
-}
-
-type OpenError struct {
-	Filename string
-	Err      error
-}
-
-func (self OpenError) Error() string {
-	return fmt.Sprintf(
-		"rolling_file_appender: Failed to open %s: %s",
-		self.Filename,
-		self.Err.Error(),
-	)
-}
-
-func IsOpenError(err error) bool {
-	_, ok := err.(OpenError)
-	return ok
-}
-
-type RenameError struct {
-	OldFilename string
-	NewFilename string
-	Err         error
-}
-
-func (self RenameError) Error() string {
-	return fmt.Sprintf(
-		"rolling_file_appender: Failed to rename %s to %s: %s",
-		self.OldFilename,
-		self.NewFilename,
-		self.Err.Error(),
-	)
-}
-
-func IsRenameError(err error) bool {
-	_, ok := err.(RenameError)
-	return ok
-}
-
-type WriteError struct {
-	Filename string
-	Err      error
-}
-
-func (self WriteError) Error() string {
-	return fmt.Sprintf(
-		"rolling_file_appender: Failed to write to %s: %s",
-		self.Filename,
-		self.Err.Error(),
-	)
-}
-
-func IsWriteError(err error) bool {
-	_, ok := err.(WriteError)
-	return ok
-}
-
-type RotationTime struct {
-	Time     time.Time
-	Serial   int
-	Filename string
-}
-
-type RotationTimeSlice [](*RotationTime)
-
-func (self RotationTimeSlice) Len() int {
-	return len(self)
-}
-
-func (self RotationTimeSlice) Less(i, j int) bool {
-	if self[i].Time == self[j].Time {
-		return self[i].Serial < self[j].Serial
-	}
-
-	return self[i].Time.Before(self[j].Time)
-}
-
-func (self RotationTimeSlice) Swap(i, j int) {
-	self[i], self[j] = self[j], self[i]
-}
-
-var rotatedTimeRegExp = regexp.MustCompile(`\.(\d+-\d\d-\d\dT\d\d-\d\d-\d\d)(-(\d+))?$`)
-
-func extractRotationTimeFromFilename(filename string) (*RotationTime, error) {
-	match := rotatedTimeRegExp.FindStringSubmatch(filename)
-
-	if match == nil {
-		return nil, fmt.Errorf("Filename does not match rotation time format: %s", filename)
-	}
-
-	rotatedTime, err := time.Parse("2006-01-02T15-04-05", match[1])
+func (self *RollingFileAppender) loadState() error {
+	state, err := readState(self.statePath())
 	if err != nil {
-		return nil, fmt.Errorf(
-			"Time %s in filename %s did not parse: %v",
-			match[1],
-			filename,
-			err,
-		)
+		return err
 	}
 
-	serial := 0
-	if match[3] != "" {
-		serial, err = strconv.Atoi(match[3])
+	self.state = state
+	return nil
+}
 
-		if err != nil {
-			return nil, fmt.Errorf(
-				"Could not parse serial number in filename %s: %v",
-				filename,
-				err,
-			)
-		}
+func (self *RollingFileAppender) stampStartTime() error {
+	state := newState(time.Now())
+	if err := state.write(self.statePath()); err != nil {
+		return err
 	}
-
-	return &RotationTime{rotatedTime, serial, filename}, nil
+	self.state = state
+	return nil
 }
