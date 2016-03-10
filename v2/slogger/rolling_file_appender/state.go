@@ -7,8 +7,14 @@ import (
 	"time"
 )
 
+// state is serialized to and deserialized from disk.  Changes to this
+// structure should be done in a backward-compatible fashion.  If new
+// fields are added here then they will be read in as the zero value
+// when reading in older versions of the state file.  Existing fields'
+// types should not be changed as that will break reading in older
+// versions of the state file.
 type state struct {
-	LogStartTime time.Time
+	LogStartTime time.Time `json:"logStartTime"`
 }
 
 func newState(logStartTime time.Time) *state {

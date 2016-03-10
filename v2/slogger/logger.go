@@ -324,6 +324,9 @@ func (self *StackError) Error() string {
 
 func stripDirectories(filepath string, toKeep int) string {
 	var idxCutoff int
+
+	// Look for forward slashes ('/') regardless of OS because the Go
+	// runtime uses forward slashes regardless of OS
 	if idxCutoff = strings.LastIndex(filepath, string('/')); idxCutoff == -1 {
 		return filepath
 	}

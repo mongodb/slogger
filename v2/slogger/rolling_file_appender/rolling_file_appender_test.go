@@ -123,19 +123,33 @@ func TestRotationSizeBased(test *testing.T) {
 
 func TestRotationTimeBased(test *testing.T) {
 	defer teardown()
-	appender, logger := setup(test, -1, time.Second, 10, false)
+
+	func() {
+		appender, logger := setup(test, -1, time.Second, 10, false)
+		defer appender.Close()
+
+		assertNumLogFiles(test, 1)
+		time.Sleep(time.Second + 50*time.Millisecond)
+		_, errs := logger.Logf(slogger.WARN, "Trigger log rotation 1")
+		AssertNoErrors(test, errs)
+		assertNumLogFiles(test, 2)
+
+		time.Sleep(time.Second + 50*time.Millisecond)
+		_, errs = logger.Logf(slogger.WARN, "Trigger log rotation 2")
+		AssertNoErrors(test, errs)
+		assertNumLogFiles(test, 3)
+	}()
+
+	// Test that time-based log rotation still works if we recreate
+	// the appender.  This forces the state file to be read in
+	appender, logger := newAppenderAndLogger(test, -1, time.Second, 10, false)
 	defer appender.Close()
 
-	assertNumLogFiles(test, 1)
-	time.Sleep(time.Second + 50*time.Millisecond)
-	_, errs := logger.Logf(slogger.WARN, "Trigger log rotation 1")
-	AssertNoErrors(test, errs)
-	assertNumLogFiles(test, 2)
-
-	time.Sleep(time.Second + 50*time.Millisecond)
-	_, errs = logger.Logf(slogger.WARN, "Trigger log rotation 2")
-	AssertNoErrors(test, errs)
 	assertNumLogFiles(test, 3)
+	time.Sleep(time.Second + 50*time.Millisecond)
+	_, errs := logger.Logf(slogger.WARN, "Trigger log rotation 3")
+	AssertNoErrors(test, errs)
+	assertNumLogFiles(test, 4)
 }
 
 func TestRotationManual(test *testing.T) {

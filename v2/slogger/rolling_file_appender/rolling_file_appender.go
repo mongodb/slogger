@@ -29,16 +29,28 @@ import (
 )
 
 type RollingFileAppender struct {
+	// These fields should not need to change
 	maxFileSize          int64
 	maxDuration          time.Duration
 	maxRotatedLogs       int
-	file                 *os.File
 	absPath              string
-	curFileSize          int64
 	headerGenerator      func() []string
 	stringWriterCallback func(*os.File) slogger.StringWriter
-	lock                 sync.Mutex
-	state                *state
+
+	lock sync.Mutex
+
+	// These fields can change and the lock should be held when
+	// reading or writing to them after construction of the
+	// RollingFileAppender struct
+	file        *os.File
+	curFileSize int64
+
+	// state holds "state" that is written to disk in a hidden state
+	// file.  Not all "state" needs to go in here.  For example, the
+	// current file size can be determined by a stat system call on
+	// the file.  This state pointer should always be non-nil.  The
+	// lock should also be held when reading or writing to state.
+	state *state
 }
 
 // New creates a new RollingFileAppender.
@@ -56,6 +68,12 @@ type RollingFileAppender struct {
 //
 // maxDuration is how long to wait before rotating the log file.  Set
 // to 0 if you do not want log rotation to be time-based.
+//
+// If both maxFileSize and maxDuration are set than the log file will
+// be rotated whenever either threshold is met.  The duration used to
+// determine whether to rotate a log file should be rotated due to
+// maxDuration being positive is reset regardless of why the log was
+// rotated previously.
 //
 // maxRotatedLogs specifies the maximum number of rotated logs allowed
 // before old logs are deleted.  Set to a non-positive number if you
@@ -174,11 +192,15 @@ func (self *RollingFileAppender) Close() error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	err := self.file.Sync()
-	if err != nil {
+	if err := self.file.Sync(); err != nil {
 		return err
 	}
-	return self.file.Close()
+
+	if err := self.file.Close(); err != nil {
+		return &CloseError{self.absPath, err}
+	}
+
+	return nil
 }
 
 func (self *RollingFileAppender) Flush() error {
