@@ -71,9 +71,9 @@ type RollingFileAppender struct {
 //
 // If both maxFileSize and maxDuration are set than the log file will
 // be rotated whenever either threshold is met.  The duration used to
-// determine whether to rotate a log file should be rotated due to
-// maxDuration being positive is reset regardless of why the log was
-// rotated previously.
+// determine whether a log file should be rotated (that is, the
+// duration compared to maxDuration) is reset regardless of why the
+// log was rotated previously.
 //
 // maxRotatedLogs specifies the maximum number of rotated logs allowed
 // before old logs are deleted.  Set to a non-positive number if you
