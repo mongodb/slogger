@@ -58,7 +58,19 @@ func (self *RetainingLevelFilterAppender) Append(log *slogger.Log) error {
 }
 
 func (self *RetainingLevelFilterAppender) AppendRetainedLogs(category string) []error {
-	return self.retainedLogs.sendLogsToAppender(self.appender, category)
+	errs := make([]error, 0, 2)
+	header := slogger.SimpleLogStrippingDirs("retaining_level_filter_appender", slogger.INFO, slogger.NoErrorCode, 1, 2, "Dumping retained logs for category %v", category)
+	if err := self.appender.Append(header); err != nil {
+		errs = append(errs, err)
+	}
+
+	errs = append(errs, self.retainedLogs.sendLogsToAppender(self.appender, category)...)
+
+	trailer := slogger.SimpleLogStrippingDirs("retaining_level_filter_appender", slogger.INFO, slogger.NoErrorCode, 1, 2, "Done dumping retained logs for category %v", category)
+	if err := self.appender.Append(trailer); err != nil {
+		errs = append(errs, err)
+	}
+	return errs
 }
 
 func (self *RetainingLevelFilterAppender) ClearRetainedLogs(category string) {
