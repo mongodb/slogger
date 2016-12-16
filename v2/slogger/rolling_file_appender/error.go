@@ -155,3 +155,21 @@ func IsStatError(err error) bool {
 	_, ok := err.(StatError)
 	return ok
 }
+
+type SyncError struct {
+	Filename string
+	Err      error
+}
+
+func (self SyncError) Error() string {
+	return fmt.Sprintf(
+		"rolling_file_appender: Failed to sync %s: %s",
+		self.Filename,
+		self.Err.Error(),
+	)
+}
+
+func IsSyncError(err error) bool {
+	_, ok := err.(SyncError)
+	return ok
+}

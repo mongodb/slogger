@@ -170,11 +170,75 @@ func TestRotationManual(test *testing.T) {
 	assertNumLogFiles(test, 3)
 }
 
+func TestReopen(test *testing.T) {
+	defer teardown()
+
+	// simulate manual log rotation via Reopen()
+
+	appender, logger := setup(test, 0, 0, 0, false)
+	defer appender.Close()
+
+	_, errs := logger.Logf(slogger.WARN, "This is a log message 1")
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
+
+	assertCurrentLogContains(test, "This is a log message 1")
+
+	rotatedLogPath := rfaTestLogPath + ".rotated"
+	if err := os.Rename(rfaTestLogPath, rotatedLogPath); err != nil {
+		test.Fatalf("os.Rename() returned an error: %v", err)
+	}
+
+	if _, err := os.Stat(rfaTestLogPath); err == nil {
+		test.Fatal(rfaTestLogPath + " should not exist after rename")
+	}
+
+	assertLogContains(test, rotatedLogPath, "This is a log message 1")
+
+	_, errs = logger.Logf(slogger.WARN, "This is a log message 2")
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
+
+	assertLogContains(test, rotatedLogPath, "This is a log message 2")
+	if err := appender.Reopen(); err != nil {
+		test.Fatalf("Error reopening log: %v", err)
+	}
+
+	assertLogContains(test, rotatedLogPath, "This is a log message 1")
+	assertLogContains(test, rotatedLogPath, "This is a log message 2")
+
+	assertCurrentLogDoesNotContain(test, "This is a log message 1")
+	assertCurrentLogDoesNotContain(test, "This is a log message 2")
+
+	_, errs = logger.Logf(slogger.WARN, "This is a log message 3")
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
+
+	assertCurrentLogContains(test, "This is a log message 3")
+	assertLogDoesNotContain(test, rotatedLogPath, "This is a log message 3")
+}
+
 func assertCurrentLogContains(test *testing.T, expected string) {
-	actual := readCurrentLog(test)
+	assertLogContains(test, rfaTestLogPath, expected)
+}
+
+func assertCurrentLogDoesNotContain(test *testing.T, notExpected string) {
+	assertLogDoesNotContain(test, rfaTestLogPath, notExpected)
+}
+
+func assertLogContains(test *testing.T, logPath, expected string) {
+	actual := readLog(test, logPath)
 
 	if !strings.Contains(actual, expected) {
-		test.Errorf("Log contains: \n%s\ninstead of\n%s", actual, expected)
+		test.Errorf("Log %s contains: \n%s\ninstead of\n%s", logPath, actual, expected)
+	}
+}
+
+func assertLogDoesNotContain(test *testing.T, logPath, notExpected string) {
+	actual := readLog(test, logPath)
+
+	if strings.Contains(actual, notExpected) {
+		test.Errorf("Log %s should not contain: \n%s", logPath, notExpected)
 	}
 }
 
@@ -249,8 +313,8 @@ func numLogFiles() (int, error) {
 	return len(visibleFilenames), nil
 }
 
-func readCurrentLog(test *testing.T) string {
-	bytes, err := ioutil.ReadFile(rfaTestLogPath)
+func readLog(test *testing.T, logPath string) string {
+	bytes, err := ioutil.ReadFile(logPath)
 	if err != nil {
 		test.Fatal("Could not read log file")
 	}

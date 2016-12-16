@@ -115,21 +115,9 @@ func TestFilter(test *testing.T) {
 }
 
 func TestStacktrace(test *testing.T) {
-	// slogger/logger_test.go:129
-	// testing/testing.go:346
-	// runtime/proc.c:1214
-
 	stacktrace := NewStackError("").Stacktrace
 	if match, _ := regexp.MatchString("^at v2/slogger/logger_test.go:\\d+", stacktrace[0]); match == false {
 		test.Errorf("Stacktrace level 0 did not match. Received: %v", stacktrace[0])
-	}
-
-	if match, _ := regexp.MatchString("^at pkg/testing/testing.go:\\d+", stacktrace[1]); match == false {
-		test.Errorf("Stacktrace level 1 did not match. Received: %v", stacktrace[1])
-	}
-
-	if match, _ := regexp.MatchString("^at pkg/runtime/proc.c:\\d+", stacktrace[2]); match == false {
-		test.Errorf("Stacktrace level 2 did not match. Received: %v", stacktrace[2])
 	}
 }
 

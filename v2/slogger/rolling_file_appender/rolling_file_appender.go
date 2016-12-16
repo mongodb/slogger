@@ -207,7 +207,11 @@ func (self *RollingFileAppender) Flush() error {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	return self.file.Sync()
+	if err := self.file.Sync(); err != nil {
+		return &SyncError{self.absPath, err}
+	}
+
+	return nil
 }
 
 func (self *RollingFileAppender) Rotate() error {
@@ -215,6 +219,51 @@ func (self *RollingFileAppender) Rotate() error {
 	defer self.lock.Unlock()
 
 	return self.rotate()
+}
+
+// Useful for manual log rotation.  For example, logrotated may rename
+// the log file and then ask us to reopen it.  Before reopening it we
+// will be writing to the renamed log file.  After reopening we will
+// be writing to a new log file with the original name.
+func (self *RollingFileAppender) Reopen() error {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	// close current log if we have one open
+	if self.file != nil {
+		if err := self.file.Sync(); err != nil {
+			return &SyncError{self.absPath, err}
+		}
+
+		if err := self.file.Close(); err != nil {
+			return &CloseError{self.absPath, err}
+		}
+	}
+
+	fileInfo, err := os.Stat(self.absPath)
+	if err == nil { // file exists
+		self.curFileSize = fileInfo.Size()
+	} else { // file does not exist
+		self.curFileSize = 0
+	}
+
+	file, err := os.OpenFile(self.absPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666) // umask applies to perms
+	if err != nil {
+		self.file = nil
+		return &OpenError{self.absPath, err}
+	}
+	self.file = file
+	self.logHeader()
+
+	// stamp start time
+	if err = self.stampStartTime(); err != nil {
+		return err
+	}
+
+	// remove really old logs
+	self.removeMaxRotatedLogs()
+
+	return nil
 }
 
 func rotatedFilename(baseFilename string, t time.Time, serial int) string {
@@ -238,14 +287,14 @@ func rotatedFilename(baseFilename string, t time.Time, serial int) string {
 
 func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytesWritten int, err error) {
 	if self.file == nil {
-		return 0, NoFileError{}
+		return 0, &NoFileError{}
 	}
 
 	msg := slogger.FormatLog(log)
 	bytesWritten, err = self.stringWriterCallback(self.file).WriteString(msg)
 
 	if err != nil {
-		err = WriteError{self.absPath, err}
+		err = &WriteError{self.absPath, err}
 	}
 
 	return
@@ -285,7 +334,7 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() error {
 	rotationTimes, err := self.rotationTimeSlice()
 
 	if err != nil {
-		return MinorRotationError{err}
+		return &MinorRotationError{err}
 	}
 
 	numLogsToDelete := len(rotationTimes) - self.maxRotatedLogs
@@ -300,7 +349,7 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() error {
 	sort.Sort(rotationTimes)
 	for _, rotationTime := range rotationTimes[:numLogsToDelete] {
 		if err = os.Remove(rotationTime.Filename); err != nil {
-			return MinorRotationError{err}
+			return &MinorRotationError{err}
 		}
 	}
 	return nil
@@ -316,7 +365,7 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 
 	for serial := 0; err == nil; serial++ { // err == nil means file exists
 		if serial > MAX_ROTATE_SERIAL_NUM {
-			return RenameError{
+			return &RenameError{
 				oldFilename,
 				newFilename,
 				fmt.Errorf("Reached max serial number: %d", MAX_ROTATE_SERIAL_NUM),
@@ -329,7 +378,7 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 	err = os.Rename(oldFilename, newFilename)
 
 	if err != nil {
-		return RenameError{oldFilename, newFilename, err}
+		return &RenameError{oldFilename, newFilename, err}
 	}
 	return nil
 }
@@ -338,7 +387,7 @@ func (self *RollingFileAppender) rotate() error {
 	// close current log if we have one open
 	if self.file != nil {
 		if err := self.file.Close(); err != nil {
-			return CloseError{self.absPath, err}
+			return &CloseError{self.absPath, err}
 		}
 	}
 	self.curFileSize = 0
@@ -352,7 +401,7 @@ func (self *RollingFileAppender) rotate() error {
 	file, err := os.Create(self.absPath)
 	if err != nil {
 		self.file = nil
-		return OpenError{self.absPath, err}
+		return &OpenError{self.absPath, err}
 	}
 	self.file = file
 	self.logHeader()
