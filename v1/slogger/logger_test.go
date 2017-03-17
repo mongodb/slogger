@@ -155,6 +155,24 @@ func TestFilter(test *testing.T) {
 	}
 }
 
+func TestFilterOff(test *testing.T) {
+	counter := &countingAppender{}
+	logger := &Logger{
+		Prefix:    "agent.OplogTail",
+		Appenders: []Appender{LevelFilter(OFF, counter)},
+	}
+
+	logger.Logf(INFO, "%d", 0)
+	logger.Logf(WARN, "%d", 1)
+	logger.Logf(ERROR, "%d", 2)
+	logger.Logf(DEBUG, "%d", 3)
+
+	if counter.count != 0 {
+		test.Errorf("Expected no logs to pass through the filter to the appender. Received: %d",
+			counter.count)
+	}
+}
+
 func TestStacktrace(test *testing.T) {
 	stacktrace := NewStackError("").Stacktrace
 	if match, _ := regexp.MatchString("^at v1/slogger/logger_test.go:\\d+", stacktrace[0]); match == false {

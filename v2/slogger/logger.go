@@ -236,12 +236,12 @@ type Level uint8
 // The level is in an order such that the expressions
 // `level < WARN`, `level >= INFO` have intuitive meaning.
 const (
-	OFF Level = iota
-	DEBUG
+	DEBUG Level = iota
 	INFO
 	WARN
 	ERROR
 	FATAL
+	OFF
 	topLevel
 )
 
