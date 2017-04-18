@@ -17,7 +17,11 @@
 
 package async_appender
 
-import "github.com/mongodb/slogger/v2/slogger"
+import (
+	"fmt"
+
+	"github.com/mongodb/slogger/v2/slogger"
+)
 
 type AsyncAppender struct {
 	Appender   slogger.Appender
@@ -40,13 +44,20 @@ func New(appender slogger.Appender, channelCapacity int, errHandler func(error))
 }
 
 func (self *AsyncAppender) Append(log *slogger.Log) error {
+	// Interpolate log message arguments now to prevent data races
+	// when an argument to a log message is modified soon after the
+	// logging call.
+	logCopy := *log
+	logCopy.MessageFmt = fmt.Sprintf(logCopy.MessageFmt, logCopy.Args...)
+	logCopy.Args = []interface{}{}
+
 	select {
-	case self.appendCh <- log:
+	case self.appendCh <- &logCopy:
 		// nothing else to do
 	default:
 		// channel is full. log a warning
 		self.appendCh <- self.fullWarningLog()
-		self.appendCh <- log
+		self.appendCh <- &logCopy
 	}
 	return nil
 }
