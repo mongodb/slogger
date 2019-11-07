@@ -17,8 +17,6 @@ package async_appender
 import (
 	"bytes"
 	"fmt"
-	"github.com/mongodb/slogger/v2/slogger"
-	. "github.com/mongodb/slogger/v2/slogger/test_util"
 	"io"
 	"os"
 	"regexp"
@@ -27,6 +25,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/mongodb/slogger/v2/slogger"
+	. "github.com/mongodb/slogger/v2/slogger/test_util"
 )
 
 func TestLog(test *testing.T) {
@@ -60,7 +61,7 @@ func TestConcurrentLog(test *testing.T) {
 
 	stringAppender, ok := appender.Appender.(*slogger.StringAppender)
 	if !ok {
-		test.Fatal("sub Appender should be a *StringAppender: %v", appender.Appender)
+		test.Fatalf("sub Appender should be a *StringAppender: %v", appender.Appender)
 	}
 
 	tracker := make([]int, 10)
@@ -119,7 +120,7 @@ func TestConcurrentLog(test *testing.T) {
 func assertCurrentLogContains(test *testing.T, expected string, appender *AsyncAppender) {
 	stringAppender, ok := appender.Appender.(*slogger.StringAppender)
 	if !ok {
-		test.Fatal("sub Appender should be a *StringAppender: %v", appender.Appender)
+		test.Fatalf("sub Appender should be a *StringAppender: %v", appender.Appender)
 	}
 	actual := stringAppender.String()
 
