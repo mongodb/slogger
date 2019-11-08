@@ -71,15 +71,15 @@ func TestLog(test *testing.T) {
 
 	fileOutput := string(fileOutputBytes)
 	if strings.Contains(fileOutput, "logger_test.go") == false {
-		test.Fatal("Incorrect filename. Expected: `%v` Full log: `%v`", logFilename, fileOutput)
+		test.Fatalf("Incorrect filename. Expected: `%v` Full log: `%v`", logFilename, fileOutput)
 	}
 
 	if strings.Contains(fileOutput, logMessage) == false {
-		test.Fatal("Incorrect message. Expected: `%v` Full log: `%v`", logMessage, fileOutput)
+		test.Fatalf("Incorrect message. Expected: `%v` Full log: `%v`", logMessage, fileOutput)
 	}
 
 	if !strings.Contains(fileOutput, "TestLog") {
-		test.Fatal("Incorrect function name. Expected `TestLog` Full log: `%v`", fileOutput)
+		test.Fatalf("Incorrect function name. Expected `TestLog` Full log: `%v`", fileOutput)
 	}
 }
 
@@ -270,6 +270,49 @@ func TestContext(t *testing.T) {
 	if found {
 		t.Fatalf("Expected \"biz\" to not be in ctxt.  ctxt: %v", ctxt)
 	}
+}
+
+func TestTruncation(t *testing.T) {
+	const logFilename = "logger_test.output"
+	logfile, err := os.Create(logFilename)
+	if err != nil {
+		t.Fatal("Cannot create `logger_test.output` file.")
+	}
+	defer os.Remove(logFilename)
+
+	logger := &Logger{
+		Prefix:    "dummy.Dummy",
+		Appenders: []Appender{&FileAppender{logfile}},
+	}
+
+	check := func(message, expected string) {
+		logger.Logf(WARN, message)
+		fileOutputBytes, err := ioutil.ReadFile(logFilename)
+		if err != nil {
+			t.Fatal("Could not read entire file contents")
+		}
+		fileOut := string(fileOutputBytes)
+		lines := strings.Split(fileOut, "\n")
+		line := lines[len(lines)-2]
+		if !strings.Contains(line, expected) {
+			t.Fatalf("expected line to be %s but was %s", expected, line)
+		}
+	}
+	// no truncation
+	msg := "Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test. This is just a test. Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test. This is just a test. Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test."
+	check(msg, msg)
+
+	// set threshold below 100 (the minimum) - no truncation
+	SetMaxLogSize(9)
+	check(msg, msg)
+
+	SetMaxLogSize(0)
+	check(msg, msg)
+
+	// set threshold to 110
+	SetMaxLogSize(110)
+	check(msg, "This is jus...mminent warning")
+
 }
 
 func assertLoggingOccurred(t *testing.T, logBuffer *bytes.Buffer, logit func()) {

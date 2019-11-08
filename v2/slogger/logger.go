@@ -67,8 +67,29 @@ func SimpleLogStrippingDirs(prefix string, level Level, errorCode ErrorCode, cal
 	}
 }
 
+// MaxLogSize values below this threshold are effectively ignored
+const MinimumMaxLogSizeThreshold = 100
+
+var maxLogSize = -1 // -1 means no truncation
+
+func SetMaxLogSize(size int) {
+	maxLogSize = size
+}
+func getSizeInKb(n int) string {
+	return fmt.Sprintf("%.1f", float64(n)/1024)
+}
+
+func getTruncatedMessage(old string) string {
+	new := old
+	lineLen := len(old)
+	if maxLogSize > MinimumMaxLogSizeThreshold && lineLen > maxLogSize+4 {
+		new = fmt.Sprintf("%s...%s (warning: log line attempted (%vk) over max size (%vk), printing beginning and end)", old[0:maxLogSize], old[lineLen+3-MinimumMaxLogSizeThreshold:], getSizeInKb(lineLen), getSizeInKb(maxLogSize))
+	}
+	return new
+}
+
 func (self *Log) Message() string {
-	return fmt.Sprintf(self.MessageFmt, self.Args...)
+	return getTruncatedMessage(fmt.Sprintf(self.MessageFmt, self.Args...))
 }
 
 type Logger struct {

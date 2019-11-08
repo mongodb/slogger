@@ -69,11 +69,11 @@ func TestLog(test *testing.T) {
 
 	fileOutput := string(fileOutputBytes)
 	if strings.Contains(fileOutput, "logger_test.go") == false {
-		test.Fatal("Incorrect filename. Expected: `%v` Full log: `%v`", logFilename, fileOutput)
+		test.Fatalf("Incorrect filename. Expected: `%v` Full log: `%v`", logFilename, fileOutput)
 	}
 
 	if strings.Contains(fileOutput, logMessage) == false {
-		test.Fatal("Incorrect message. Expected: `%v` Full log: `%v`", logMessage, fileOutput)
+		test.Fatalf("Incorrect message. Expected: `%v` Full log: `%v`", logMessage, fileOutput)
 	}
 }
 
