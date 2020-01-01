@@ -290,7 +290,7 @@ func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytes
 		return 0, &NoFileError{}
 	}
 
-	msg := slogger.FormatLog(log)
+	msg := slogger.FormatLogFunc(log)
 	bytesWritten, err = self.stringWriterCallback(self.file).WriteString(msg)
 
 	if err != nil {

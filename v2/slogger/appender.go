@@ -25,24 +25,66 @@ type Appender interface {
 	Flush() error
 }
 
-func FormatLog(log *Log) string {
-	year, month, day := log.Timestamp.Date()
-	hour, min, sec := log.Timestamp.Clock()
-	millisec := log.Timestamp.Nanosecond() / 1000000
+var FormatLogFunc = FormatLog
+
+func SetFormatLogFunc(f func(log *Log) string) {
+	FormatLogFunc = f
+
+}
+
+func formatLog(log *Log, timePart string) string {
 
 	errorCodeStr := ""
 	if log.ErrorCode != NoErrorCode {
 		errorCodeStr += fmt.Sprintf("[%v] ", log.ErrorCode)
 	}
 
-	return fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d] [%v.%v] [%v:%v:%d] %v%v\n",
-		year, month, day,
-		hour, min, sec,
-		millisec,
-		log.Prefix, log.Level.Type(),
+	return fmt.Sprintf("%v [%v.%v] [%v:%v:%d] %v%v\n",
+		timePart, log.Prefix, log.Level.Type(),
 		log.Filename, log.FuncName, log.Line,
 		errorCodeStr,
 		log.Message())
+}
+
+func convertOffsetToString(offset int) string {
+	var sign string
+	if offset > 0 {
+		sign = "+"
+	} else {
+		sign = "-"
+	}
+	hoursOffset := float32(offset) / 3600.0
+	var leadingZero string
+	if hoursOffset > -9 && hoursOffset < 9 {
+		leadingZero = "0"
+	}
+	return fmt.Sprintf("%s%s%.0f", sign, leadingZero, hoursOffset*100.0)
+}
+
+func FormatLogWithTimezone(log *Log) string {
+	year, month, day := log.Timestamp.Date()
+	hour, min, sec := log.Timestamp.Clock()
+	millisec := log.Timestamp.Nanosecond() / 1000000
+	_, offset := log.Timestamp.Zone() // offset in seconds
+
+	return formatLog(log, fmt.Sprintf("[%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%.3d%s]",
+		year, month, day,
+		hour, min, sec,
+		millisec,
+		convertOffsetToString(offset)),
+	)
+}
+
+func FormatLog(log *Log) string {
+	year, month, day := log.Timestamp.Date()
+	hour, min, sec := log.Timestamp.Clock()
+	millisec := log.Timestamp.Nanosecond() / 1000000
+
+	return formatLog(log, fmt.Sprintf("[%.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.3d]",
+		year, month, day,
+		hour, min, sec,
+		millisec,
+	))
 }
 
 type StringWriter interface {
@@ -55,7 +97,7 @@ type FileAppender struct {
 }
 
 func (self FileAppender) Append(log *Log) error {
-	_, err := self.WriteString(FormatLog(log))
+	_, err := self.WriteString(FormatLogFunc(log))
 	return err
 }
 
@@ -89,7 +131,7 @@ func NewStringAppender(buffer *bytes.Buffer) *StringAppender {
 }
 
 func (self StringAppender) Append(log *Log) error {
-	_, err := self.WriteString(FormatLog(log))
+	_, err := self.WriteString(FormatLogFunc(log))
 	return err
 }
 
