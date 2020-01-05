@@ -25,10 +25,18 @@ type Appender interface {
 	Flush() error
 }
 
-var FormatLogFunc = FormatLog
+var formatLogFunc = FormatLog
+
+func GetFormatLogFunc() func(log *Log) string {
+	loggerConfigLock.RLock()
+	defer loggerConfigLock.RUnlock()
+	return formatLogFunc
+}
 
 func SetFormatLogFunc(f func(log *Log) string) {
-	FormatLogFunc = f
+	loggerConfigLock.Lock()
+	defer loggerConfigLock.Unlock()
+	formatLogFunc = f
 
 }
 
@@ -97,7 +105,8 @@ type FileAppender struct {
 }
 
 func (self FileAppender) Append(log *Log) error {
-	_, err := self.WriteString(FormatLogFunc(log))
+	f := GetFormatLogFunc()
+	_, err := self.WriteString(f(log))
 	return err
 }
 

@@ -19,8 +19,11 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
+
+var loggerConfigLock sync.RWMutex
 
 type Log struct {
 	Prefix     string
@@ -72,7 +75,15 @@ const MinimumMaxLogSizeThreshold = 100
 
 var maxLogSize = -1 // -1 means no truncation
 
+func getMaxLogSize() int {
+	loggerConfigLock.RLock()
+	defer loggerConfigLock.RUnlock()
+	return maxLogSize
+}
+
 func SetMaxLogSize(size int) {
+	loggerConfigLock.Lock()
+	defer loggerConfigLock.Unlock()
 	maxLogSize = size
 }
 func getSizeInKb(n int) string {
@@ -82,8 +93,9 @@ func getSizeInKb(n int) string {
 func getTruncatedMessage(old string) string {
 	new := old
 	lineLen := len(old)
-	if maxLogSize > MinimumMaxLogSizeThreshold && lineLen > maxLogSize+4 {
-		new = fmt.Sprintf("%s...%s (warning: log line attempted (%vk) over max size (%vk), printing beginning and end)", old[0:maxLogSize], old[lineLen+3-MinimumMaxLogSizeThreshold:], getSizeInKb(lineLen), getSizeInKb(maxLogSize))
+	mls := getMaxLogSize()
+	if mls > MinimumMaxLogSizeThreshold && lineLen > mls+4 {
+		new = fmt.Sprintf("%s...%s (warning: log line attempted (%vk) over max size (%vk), printing beginning and end)", old[0:mls], old[lineLen+3-MinimumMaxLogSizeThreshold:], getSizeInKb(lineLen), getSizeInKb(maxLogSize))
 	}
 	return new
 }
@@ -179,7 +191,15 @@ var ignoredFileNames = []string{"logger.go"}
 // If you IgnoreThisFilenameToo(...) on the files of that library, logging messages
 // will be marked as coming from your code that calls your library, rather than from your library.
 func IgnoreThisFilenameToo(fn string) {
+	loggerConfigLock.Lock()
+	defer loggerConfigLock.Unlock()
 	ignoredFileNames = append(ignoredFileNames, fn)
+}
+
+func getIgnoredFileNames() []string {
+	loggerConfigLock.RLock()
+	defer loggerConfigLock.RUnlock()
+	return ignoredFileNames
 }
 
 func baseFuncNameForPC(pc uintptr) string {
@@ -196,7 +216,7 @@ func baseFuncNameForPC(pc uintptr) string {
 }
 
 func containsAnyIgnoredFilename(s string) bool {
-	for _, ign := range ignoredFileNames {
+	for _, ign := range getIgnoredFileNames() {
 		if strings.Contains(s, ign) {
 			return true
 		}
