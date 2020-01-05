@@ -140,7 +140,8 @@ func NewStringAppender(buffer *bytes.Buffer) *StringAppender {
 }
 
 func (self StringAppender) Append(log *Log) error {
-	_, err := self.WriteString(FormatLogFunc(log))
+	f := GetFormatLogFunc()
+	_, err := self.WriteString(f(log))
 	return err
 }
 
