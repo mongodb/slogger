@@ -95,7 +95,7 @@ func getTruncatedMessage(old string) string {
 	lineLen := len(old)
 	mls := getMaxLogSize()
 	if mls > MinimumMaxLogSizeThreshold && lineLen > mls+4 {
-		new = fmt.Sprintf("%s...%s (warning: log line attempted (%vk) over max size (%vk), printing beginning and end)", old[0:mls], old[lineLen+3-MinimumMaxLogSizeThreshold:], getSizeInKb(lineLen), getSizeInKb(maxLogSize))
+		new = fmt.Sprintf("%s...%s (warning: log line attempted (%vk) over max size (%vk), printing beginning and end)", old[0:mls], old[lineLen+3-MinimumMaxLogSizeThreshold:], getSizeInKb(lineLen), getSizeInKb(mls))
 	}
 	return new
 }
