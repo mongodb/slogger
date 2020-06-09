@@ -24,7 +24,6 @@ type Context struct {
 func NewContext() *Context {
 	c := new(Context)
 	c.fields = make(map[string]interface{}, 0)
-	c.lock = sync.RWMutex{}
 	return c
 }
 
