@@ -277,7 +277,7 @@ type Level uint8
 // The level is in an order such that the expressions
 // `level < WARN`, `level >= INFO` have intuitive meaning.
 const (
-	DIAL Level = iota
+	TRACE Level = iota
 	DEBUG
 	INFO
 	WARN
@@ -294,7 +294,7 @@ var levelToStr []string
 func init() {
 	strToLevel = map[string]Level{
 		"off":   OFF,
-		"dial":  DIAL,
+		"trace": TRACE,
 		"debug": DEBUG,
 		"info":  INFO,
 		"warn":  WARN,
