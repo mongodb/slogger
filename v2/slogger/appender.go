@@ -56,7 +56,7 @@ func formatLog(log *Log, timePart string) string {
 
 func convertOffsetToString(offset int) string {
 	if offset == 0 {
-		return ""
+		return "+0000"
 	}
 	var sign string
 	if offset > 0 {
