@@ -55,11 +55,15 @@ func formatLog(log *Log, timePart string) string {
 }
 
 func convertOffsetToString(offset int) string {
+	if offset == 0 {
+		return ""
+	}
 	var sign string
 	if offset > 0 {
 		sign = "+"
 	} else {
 		sign = "-"
+		offset *= -1
 	}
 	hoursOffset := float32(offset) / 3600.0
 	var leadingZero string
