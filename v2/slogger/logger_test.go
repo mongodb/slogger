@@ -381,8 +381,12 @@ func TestErrorWrapping(t *testing.T) {
 		t.Errorf("cause should be 'foo' but was %s", cause.Error())
 		return
 	}
-	if _, isRightType := cause.(customError); !isRightType {
+	if !errors.Is(cause, customError{}) {
 		t.Error("error cause is not the right type")
+		return
+	}
+	if !errors.As(cause, &customError{}) {
+		t.Error("error cause cannot be cast to the base error")
 	}
 }
 
