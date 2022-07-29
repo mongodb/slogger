@@ -16,6 +16,7 @@ package slogger
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -363,4 +364,30 @@ func logHelloMongoDB(logger *Logger) {
 
 func logHelloWorld(logger *Logger) {
 	logger.logf(WARN, NoErrorCode, "Hello World", nil)
+}
+
+func TestErrorWrapping(t *testing.T) {
+	wrappedErr := ErrorWithCode{
+		ErrCode: NoErrorCode,
+		Err:     customError{},
+	}
+
+	cause := errors.Unwrap(wrappedErr)
+	if cause == nil {
+		t.Error("error cause should not be nil")
+		return
+	}
+	if cause.Error() != "foo" {
+		t.Errorf("cause should be 'foo' but was %s", cause.Error())
+		return
+	}
+	if _, isRightType := cause.(customError); !isRightType {
+		t.Error("error cause is not the right type")
+	}
+}
+
+type customError struct{}
+
+func (e customError) Error() string {
+	return "foo"
 }
