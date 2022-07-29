@@ -145,6 +145,10 @@ func (e ErrorWithCode) Error() string {
 	return e.Err.Error()
 }
 
+func (e ErrorWithCode) Unwrap() error {
+	return e.Err
+}
+
 func (self *Logger) Errorf(level Level, messageFmt string, args ...interface{}) error {
 	return self.ErrorfWithContext(level, messageFmt, nil, args...)
 }
