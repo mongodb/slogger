@@ -31,7 +31,7 @@ func (self RotationTimeSlice) Swap(i, j int) {
 	self[i], self[j] = self[j], self[i]
 }
 
-var rotatedTimeRegExp = regexp.MustCompile(`\.(\d+-\d\d-\d\dT\d\d-\d\d-\d\d)(-(\d+))?$`)
+var rotatedTimeRegExp = regexp.MustCompile(`\.(\d+-\d\d-\d\dT\d\d-\d\d-\d\d)(-(\d+))?(.gz)?$`)
 
 func extractRotationTimeFromFilename(filename string) (*RotationTime, error) {
 	match := rotatedTimeRegExp.FindStringSubmatch(filename)

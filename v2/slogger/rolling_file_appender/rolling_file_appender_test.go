@@ -17,6 +17,7 @@ package rolling_file_appender
 import (
 	"github.com/mongodb/slogger/v2/slogger"
 	. "github.com/mongodb/slogger/v2/slogger/test_util"
+	"path/filepath"
 
 	"io/ioutil"
 	"os"
@@ -216,6 +217,47 @@ func TestReopen(test *testing.T) {
 
 	assertCurrentLogContains(test, "This is a log message 3")
 	assertLogDoesNotContain(test, rotatedLogPath, "This is a log message 3")
+}
+
+func TestCompressionOnRotation(test *testing.T) {
+	defer teardown()
+
+	appender, logger := setup(test, 10, 0, 10, false)
+	appender.compressRotatedLogs = true
+	defer appender.Close()
+
+	compressibleMessage := "This string is easily compressible"
+	for i := 0; i < 10; i++ {
+		compressibleMessage += compressibleMessage
+	}
+
+	_, errs := logger.Logf(slogger.WARN, compressibleMessage)
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
+
+	var compressedLogFiles int
+	var sizeCompressedFile int
+	err := filepath.Walk(rfaTestLogDir, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(info.Name(), ".gz") {
+			compressedLogFiles++
+			sizeCompressedFile = int(info.Size())
+		}
+		return err
+	})
+	if err != nil {
+		test.Error(err)
+	}
+
+	assertNumLogFiles(test, 2)
+	if compressedLogFiles != 1 {
+		test.Errorf("expected to find one compressed log file")
+	}
+	if sizeCompressedFile >= len(compressibleMessage)/10 {
+		test.Errorf("expected the compressed log file size %v to be smaller than the logged bytes %v", sizeCompressedFile, len(compressibleMessage))
+	}
 }
 
 func assertCurrentLogContains(test *testing.T, expected string) {
