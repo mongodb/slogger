@@ -218,6 +218,41 @@ func TestReopen(test *testing.T) {
 	assertLogDoesNotContain(test, rotatedLogPath, "This is a log message 3")
 }
 
+func TestCustomLogFormatFunc(test *testing.T) {
+	defer teardown()
+
+	createLogDir(test)
+	appender, err := NewWithStringWriter(
+		rfaTestLogPath,
+		-1,
+		0,
+		10,
+		false,
+		func() []string {
+			return []string{}
+		},
+		nil,
+		func(log *slogger.Log) string { return log.Message() },
+	)
+
+	if err != nil {
+		test.Fatal("NewRollingFileAppender() failed: " + err.Error())
+	}
+
+	logger := &slogger.Logger{
+		Prefix:    "rfa",
+		Appenders: []slogger.Appender{appender},
+	}
+
+	actualLog := "this is a test log message"
+	logger.Logf(slogger.WARN, actualLog)
+	writtenLog := readLog(test, rfaTestLogPath)
+
+	if actualLog != writtenLog {
+		test.Fatal("Expected the log to be written without any formatting")
+	}
+}
+
 func assertCurrentLogContains(test *testing.T, expected string) {
 	assertLogContains(test, rfaTestLogPath, expected)
 }

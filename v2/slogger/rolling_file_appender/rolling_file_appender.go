@@ -51,6 +51,10 @@ type RollingFileAppender struct {
 	// the file.  This state pointer should always be non-nil.  The
 	// lock should also be held when reading or writing to state.
 	state *state
+
+	// Custom log formatting function. Useful when one wants the log structure
+	// be different than the default.
+	logFormatFunc func(*slogger.Log) string
 }
 
 // New creates a new RollingFileAppender.
@@ -98,10 +102,10 @@ type RollingFileAppender struct {
 // at least Flush()).  This ensures that in case of program exit
 // (normal or panicking) that any pending logs are logged.
 func New(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
-	return NewWithStringWriter(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
+	return NewWithStringWriter(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil, nil)
 }
 
-func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
+func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter, logFormatFunc func(log *slogger.Log) string) (*RollingFileAppender, error) {
 	if headerGenerator == nil {
 		headerGenerator = func() []string {
 			return []string{}
@@ -111,6 +115,10 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 		stringWriterCallback = func(f *os.File) slogger.StringWriter {
 			return f
 		}
+	}
+
+	if logFormatFunc == nil {
+		logFormatFunc = slogger.FormatLog
 	}
 
 	absPath, err := filepath.Abs(filename)
@@ -125,6 +133,7 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 		absPath:              absPath,
 		headerGenerator:      headerGenerator,
 		stringWriterCallback: stringWriterCallback,
+		logFormatFunc:        logFormatFunc,
 	}
 
 	fileInfo, err := os.Stat(absPath)
@@ -289,8 +298,7 @@ func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytes
 	if self.file == nil {
 		return 0, &NoFileError{}
 	}
-	f := slogger.GetFormatLogFunc()
-	msg := f(log)
+	msg := self.logFormatFunc(log)
 	bytesWritten, err = self.stringWriterCallback(self.file).WriteString(msg)
 
 	if err != nil {
