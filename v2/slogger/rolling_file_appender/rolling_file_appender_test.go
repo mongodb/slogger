@@ -232,7 +232,7 @@ func TestCustomLogFormatFunc(test *testing.T) {
 			return []string{}
 		},
 		func() func(*slogger.Log) string {
-			return func(log *slogger.Log) (string) {
+			return func(log *slogger.Log) string {
 				return log.Message()
 			}
 		},
