@@ -222,7 +222,7 @@ func TestCustomLogFormatFunc(test *testing.T) {
 	defer teardown()
 
 	createLogDir(test)
-	appender, err := NewWithStringWriter(
+	appender, err := NewWithLogFormatter(
 		rfaTestLogPath,
 		-1,
 		0,
@@ -231,8 +231,11 @@ func TestCustomLogFormatFunc(test *testing.T) {
 		func() []string {
 			return []string{}
 		},
-		nil,
-		func(log *slogger.Log) string { return log.Message() },
+		func() func(*slogger.Log) string {
+			return func(log *slogger.Log) (string) {
+				return log.Message()
+			}
+		},
 	)
 
 	if err != nil {

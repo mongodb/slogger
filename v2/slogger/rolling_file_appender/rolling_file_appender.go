@@ -54,7 +54,7 @@ type RollingFileAppender struct {
 
 	// Custom log formatting function. Useful when one wants the log structure
 	// be different than the default.
-	logFormatFunc func(*slogger.Log) string
+	formatLogFunc func() func(*slogger.Log) string
 }
 
 // New creates a new RollingFileAppender.
@@ -102,10 +102,18 @@ type RollingFileAppender struct {
 // at least Flush()).  This ensures that in case of program exit
 // (normal or panicking) that any pending logs are logged.
 func New(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
-	return NewWithStringWriter(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil, nil)
+	return NewWithStringWriter(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
 }
 
-func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter, logFormatFunc func(log *slogger.Log) string) (*RollingFileAppender, error) {
+func NewWithLogFormatter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, formatLogFunc func () func (*slogger.Log) string) (*RollingFileAppender, error) {
+	return newRollingFileAppender(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil, formatLogFunc)
+}
+
+func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
+	return newRollingFileAppender(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, stringWriterCallback, nil)
+}
+
+func newRollingFileAppender(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter, formatLogFunc func () func (*slogger.Log) string) (*RollingFileAppender, error) {
 	if headerGenerator == nil {
 		headerGenerator = func() []string {
 			return []string{}
@@ -117,8 +125,8 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 		}
 	}
 
-	if logFormatFunc == nil {
-		logFormatFunc = slogger.FormatLog
+	if (formatLogFunc == nil) {
+		formatLogFunc = slogger.GetFormatLogFunc
 	}
 
 	absPath, err := filepath.Abs(filename)
@@ -133,7 +141,7 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 		absPath:              absPath,
 		headerGenerator:      headerGenerator,
 		stringWriterCallback: stringWriterCallback,
-		logFormatFunc:        logFormatFunc,
+		formatLogFunc:        formatLogFunc,
 	}
 
 	fileInfo, err := os.Stat(absPath)
@@ -298,7 +306,7 @@ func (self *RollingFileAppender) appendSansSizeTracking(log *slogger.Log) (bytes
 	if self.file == nil {
 		return 0, &NoFileError{}
 	}
-	msg := self.logFormatFunc(log)
+	msg := self.formatLogFunc()(log)
 	bytesWritten, err = self.stringWriterCallback(self.file).WriteString(msg)
 
 	if err != nil {
