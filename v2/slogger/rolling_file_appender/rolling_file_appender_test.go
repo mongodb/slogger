@@ -17,10 +17,10 @@ package rolling_file_appender
 import (
 	"github.com/mongodb/slogger/v2/slogger"
 	. "github.com/mongodb/slogger/v2/slogger/test_util"
-	"path/filepath"
 
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -224,6 +224,7 @@ func TestCompressionOnRotation(test *testing.T) {
 
 	appender, logger := setup(test, 10, 0, 10, false)
 	appender.compressRotatedLogs = true
+	appender.maxUncompressedLogs = 1
 	defer appender.Close()
 
 	compressibleMessage := "This string is easily compressible"
@@ -235,25 +236,36 @@ func TestCompressionOnRotation(test *testing.T) {
 	AssertNoErrors(test, errs)
 	AssertNoErrors(test, logger.Flush())
 
-	var compressedLogFiles int
-	var sizeCompressedFile int
-	err := filepath.Walk(rfaTestLogDir, func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
+	checkFiles := func() (compressedLogFiles, sizeCompressedFile int) {
+		err := filepath.Walk(rfaTestLogDir, func(_ string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(info.Name(), ".gz") {
+				compressedLogFiles++
+				sizeCompressedFile = int(info.Size())
+			}
 			return err
+		})
+		if err != nil {
+			test.Error(err)
 		}
-		if strings.HasSuffix(info.Name(), ".gz") {
-			compressedLogFiles++
-			sizeCompressedFile = int(info.Size())
-		}
-		return err
-	})
-	if err != nil {
-		test.Error(err)
+		return
 	}
 
+	compressedLogFiles, _ := checkFiles()
 	assertNumLogFiles(test, 2)
+	if compressedLogFiles != 0 {
+		test.Errorf("expected to find no compressed log files")
+	}
+
+	_, errs = logger.Logf(slogger.WARN, compressibleMessage)
+	AssertNoErrors(test, errs)
+	AssertNoErrors(test, logger.Flush())
+	compressedLogFiles, sizeCompressedFile := checkFiles()
+	assertNumLogFiles(test, 3)
 	if compressedLogFiles != 1 {
-		test.Errorf("expected to find one compressed log file")
+		test.Errorf("expected to find one compressed log files")
 	}
 	if sizeCompressedFile >= len(compressibleMessage)/10 {
 		test.Errorf("expected the compressed log file size %v to be smaller than the logged bytes %v", sizeCompressedFile, len(compressibleMessage))

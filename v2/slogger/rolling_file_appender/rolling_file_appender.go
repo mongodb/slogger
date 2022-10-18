@@ -21,6 +21,7 @@ import (
 	"compress/gzip"
 	"github.com/mongodb/slogger/v2/slogger"
 	"io"
+	"strings"
 
 	"fmt"
 	"os"
@@ -36,6 +37,7 @@ type RollingFileAppender struct {
 	maxDuration          time.Duration
 	maxRotatedLogs       int
 	compressRotatedLogs  bool
+	maxUncompressedLogs  int
 	absPath              string
 	headerGenerator      func() []string
 	stringWriterCallback func(*os.File) slogger.StringWriter
@@ -63,6 +65,7 @@ type rollingFileAppenderBuilder struct {
 	maxRotatedLogs       int
 	rotateIfExists       bool
 	compressRotatedLogs  bool
+	maxUncompressedLogs  int
 	headerGenerator      func() []string
 	stringWriterCallback func(*os.File) slogger.StringWriter
 }
@@ -75,13 +78,15 @@ func newBuilder(filename string, maxFileSize int64, maxDuration time.Duration, m
 		maxRotatedLogs:       maxRotatedLogs,
 		rotateIfExists:       rotateIfExists,
 		compressRotatedLogs:  false,
+		maxUncompressedLogs:  0,
 		headerGenerator:      headerGenerator,
 		stringWriterCallback: nil,
 	}
 }
 
-func (b *rollingFileAppenderBuilder) WithLogCompression() *rollingFileAppenderBuilder {
+func (b *rollingFileAppenderBuilder) WithLogCompression(maxUncompressedLogs int) *rollingFileAppenderBuilder {
 	b.compressRotatedLogs = true
+	b.maxUncompressedLogs = maxUncompressedLogs
 	return b
 }
 
@@ -112,6 +117,7 @@ func (b *rollingFileAppenderBuilder) Build() (*RollingFileAppender, error) {
 		maxDuration:          b.maxDuration,
 		maxRotatedLogs:       b.maxRotatedLogs,
 		compressRotatedLogs:  b.compressRotatedLogs,
+		maxUncompressedLogs:  b.maxUncompressedLogs,
 		absPath:              absPath,
 		headerGenerator:      b.headerGenerator,
 		stringWriterCallback: b.stringWriterCallback,
@@ -399,7 +405,7 @@ func (self *RollingFileAppender) removeMaxRotatedLogs() error {
 
 const MAX_ROTATE_SERIAL_NUM = 1000000000
 
-func (self *RollingFileAppender) renameLogFile(oldFilename string) (string, error) {
+func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 	now := time.Now()
 
 	var newFilename string
@@ -407,7 +413,7 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) (string, erro
 
 	for serial := 0; err == nil; serial++ { // err == nil means file exists
 		if serial > MAX_ROTATE_SERIAL_NUM {
-			return "", &RenameError{
+			return &RenameError{
 				oldFilename,
 				newFilename,
 				fmt.Errorf("Reached max serial number: %d", MAX_ROTATE_SERIAL_NUM),
@@ -420,9 +426,41 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) (string, erro
 	err = os.Rename(oldFilename, newFilename)
 
 	if err != nil {
-		return "", &RenameError{oldFilename, newFilename, err}
+		return &RenameError{oldFilename, newFilename, err}
 	}
-	return newFilename, nil
+	return nil
+}
+
+func (self *RollingFileAppender) compressMaxUncompressedLogs() error {
+	if self.maxUncompressedLogs < 0 {
+		return nil
+	}
+
+	rotationTimes, err := self.rotationTimeSlice()
+
+	if err != nil {
+		return &MinorRotationError{err}
+	}
+
+	uncompressedRotationTimes := make(RotationTimeSlice, 0, len(rotationTimes))
+	for _, v := range rotationTimes {
+		if !strings.HasSuffix(v.Filename, ".gz") {
+			uncompressedRotationTimes = append(uncompressedRotationTimes, v)
+		}
+	}
+
+	numLogsToCompress := len(uncompressedRotationTimes) - self.maxUncompressedLogs
+	if numLogsToCompress <= 0 {
+		return nil
+	}
+
+	sort.Sort(uncompressedRotationTimes)
+	for _, rotationTime := range uncompressedRotationTimes[:numLogsToCompress] {
+		if err = self.compressLogFile(rotationTime.Filename); err != nil {
+			return &MinorRotationError{err}
+		}
+	}
+	return nil
 }
 
 func (self *RollingFileAppender) compressLogFile(logpath string) error {
@@ -437,6 +475,7 @@ func (self *RollingFileAppender) compressLogFile(logpath string) error {
 		return fmt.Errorf("error trying to stat %v, %v", logpath, err)
 	}
 	compressedF, err := os.Create(logpath + ".gz")
+	defer compressedF.Close()
 	if err != nil {
 		return fmt.Errorf("error trying to create %v, %v", compressedF, err)
 	}
@@ -482,15 +521,9 @@ func (self *RollingFileAppender) rotate() error {
 	self.curFileSize = 0
 
 	// rename old log
-	renamedLogPath, err := self.renameLogFile(self.absPath)
+	err := self.renameLogFile(self.absPath)
 	if err != nil {
 		return err
-	}
-	if self.compressRotatedLogs {
-		err = self.compressLogFile(renamedLogPath)
-		if err != nil {
-			return err
-		}
 	}
 
 	// create new log
@@ -507,6 +540,11 @@ func (self *RollingFileAppender) rotate() error {
 		return err
 	}
 
+	if self.compressRotatedLogs {
+		if err = self.compressMaxUncompressedLogs(); err != nil {
+			return err
+		}
+	}
 	// remove really old logs
 	self.removeMaxRotatedLogs()
 
