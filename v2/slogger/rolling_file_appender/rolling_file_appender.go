@@ -18,15 +18,15 @@
 package rolling_file_appender
 
 import (
-	"compress/gzip"
 	"github.com/mongodb/slogger/v2/slogger"
-	"io"
-	"strings"
 
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
