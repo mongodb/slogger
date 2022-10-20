@@ -227,10 +227,7 @@ func TestCompressionOnRotation(test *testing.T) {
 	appender.maxUncompressedLogs = 1
 	defer appender.Close()
 
-	compressibleMessage := "This string is easily compressible"
-	for i := 0; i < 10; i++ {
-		compressibleMessage += compressibleMessage
-	}
+	compressibleMessage := strings.Repeat("This string is easily compressible", 1000)
 
 	_, errs := logger.Logf(slogger.WARN, compressibleMessage)
 	AssertNoErrors(test, errs)

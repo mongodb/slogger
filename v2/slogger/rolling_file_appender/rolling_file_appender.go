@@ -70,7 +70,53 @@ type rollingFileAppenderBuilder struct {
 	stringWriterCallback func(*os.File) slogger.StringWriter
 }
 
-func newBuilder(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) *rollingFileAppenderBuilder {
+// NewBuilder returns a new rollingFileAppenderBuilder. You can directly
+// call Build() to create a new RollingFileAppender, or configure
+// additional options first.
+//
+// filename is path to the file to log to.  It can be a relative path
+// (with respect to the current working directory) or an absolute
+// path.
+//
+// maxFileSize is the approximate file size that will be allowed
+// before the log file is rotated.  Rotated log files will have suffix
+// of the form .YYYY-MM-DDTHH-MM-SS or .YYYY-MM-DDTHH-MM-SS-N (where N
+// is an incrementing serial number used to resolve conflicts)
+// appended to them.  Set maxFileSize to a non-positive number if you
+// wish there to be no limit.
+//
+// maxDuration is how long to wait before rotating the log file.  Set
+// to 0 if you do not want log rotation to be time-based.
+//
+// If both maxFileSize and maxDuration are set than the log file will
+// be rotated whenever either threshold is met.  The duration used to
+// determine whether a log file should be rotated (that is, the
+// duration compared to maxDuration) is reset regardless of why the
+// log was rotated previously.
+//
+// maxRotatedLogs specifies the maximum number of rotated logs allowed
+// before old logs are deleted.  Set to a non-positive number if you
+// do not want old log files to be deleted.
+//
+// If rotateIfExists is set to true and a log file with the same
+// filename already exists, then the current one will be rotated.  If
+// rotateIfExists is set to false and a log file with the same
+// filename already exists, then the current log file will be appended
+// to.  If a log file with the same filename does not exist, then a
+// new log file is created regardless of the value of rotateIfExists.
+//
+// As RotatingFileAppender might be wrapped by an AsyncAppender, an
+// errHandler can be provided that will be called when an error
+// occurs.  It can set to nil if you do not want to provide one.
+//
+// The return value headerGenerator, if not nil, is logged at the
+// beginning of every log file.
+//
+// Note that after building a RollingFileAppender with Build(), you will
+// probably want to defer a call to RollingFileAppender's Close() (or
+// at least Flush()).  This ensures that in case of program exit
+// (normal or panicking) that any pending logs are logged.
+func NewBuilder(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) *rollingFileAppenderBuilder {
 	return &rollingFileAppenderBuilder{
 		filename:             filename,
 		maxFileSize:          maxFileSize,
@@ -165,54 +211,13 @@ func (b *rollingFileAppenderBuilder) Build() (*RollingFileAppender, error) {
 
 // New creates a new RollingFileAppender.
 //
-// filename is path to the file to log to.  It can be a relative path
-// (with respect to the current working directory) or an absolute
-// path.
-//
-// maxFileSize is the approximate file size that will be allowed
-// before the log file is rotated.  Rotated log files will have suffix
-// of the form .YYYY-MM-DDTHH-MM-SS or .YYYY-MM-DDTHH-MM-SS-N (where N
-// is an incrementing serial number used to resolve conflicts)
-// appended to them.  Set maxFileSize to a non-positive number if you
-// wish there to be no limit.
-//
-// maxDuration is how long to wait before rotating the log file.  Set
-// to 0 if you do not want log rotation to be time-based.
-//
-// If both maxFileSize and maxDuration are set than the log file will
-// be rotated whenever either threshold is met.  The duration used to
-// determine whether a log file should be rotated (that is, the
-// duration compared to maxDuration) is reset regardless of why the
-// log was rotated previously.
-//
-// maxRotatedLogs specifies the maximum number of rotated logs allowed
-// before old logs are deleted.  Set to a non-positive number if you
-// do not want old log files to be deleted.
-//
-// If rotateIfExists is set to true and a log file with the same
-// filename already exists, then the current one will be rotated.  If
-// rotateIfExists is set to false and a log file with the same
-// filename already exists, then the current log file will be appended
-// to.  If a log file with the same filename does not exist, then a
-// new log file is created regardless of the value of rotateIfExists.
-//
-// As RotatingFileAppender might be wrapped by an AsyncAppender, an
-// errHandler can be provided that will be called when an error
-// occurs.  It can set to nil if you do not want to provide one.
-//
-// The return value headerGenerator, if not nil, is logged at the
-// beginning of every log file.
-//
-// Note that after creating a RollingFileAppender with New(), you will
-// probably want to defer a call to RollingFileAppender's Close() (or
-// at least Flush()).  This ensures that in case of program exit
-// (normal or panicking) that any pending logs are logged.
+// This is deprecated in favor of calling NewBuilder().Build()
 func New(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
-	return newBuilder(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator).Build()
+	return NewBuilder(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator).Build()
 }
 
 func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
-	return newBuilder(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator).WithStringWriter(stringWriterCallback).Build()
+	return NewBuilder(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator).WithStringWriter(stringWriterCallback).Build()
 }
 
 func (self *RollingFileAppender) Append(log *slogger.Log) error {
