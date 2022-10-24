@@ -20,10 +20,13 @@ package rolling_file_appender
 import (
 	"github.com/mongodb/slogger/v2/slogger"
 
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -33,6 +36,8 @@ type RollingFileAppender struct {
 	maxFileSize          int64
 	maxDuration          time.Duration
 	maxRotatedLogs       int
+	compressRotatedLogs  bool
+	maxUncompressedLogs  int
 	absPath              string
 	headerGenerator      func() []string
 	stringWriterCallback func(*os.File) slogger.StringWriter
@@ -53,7 +58,21 @@ type RollingFileAppender struct {
 	state *state
 }
 
-// New creates a new RollingFileAppender.
+type rollingFileAppenderBuilder struct {
+	filename             string
+	maxFileSize          int64
+	maxDuration          time.Duration
+	maxRotatedLogs       int
+	rotateIfExists       bool
+	compressRotatedLogs  bool
+	maxUncompressedLogs  int
+	headerGenerator      func() []string
+	stringWriterCallback func(*os.File) slogger.StringWriter
+}
+
+// NewBuilder returns a new rollingFileAppenderBuilder. You can directly
+// call Build() to create a new RollingFileAppender, or configure
+// additional options first.
 //
 // filename is path to the file to log to.  It can be a relative path
 // (with respect to the current working directory) or an absolute
@@ -93,42 +112,65 @@ type RollingFileAppender struct {
 // The return value headerGenerator, if not nil, is logged at the
 // beginning of every log file.
 //
-// Note that after creating a RollingFileAppender with New(), you will
+// Note that after building a RollingFileAppender with Build(), you will
 // probably want to defer a call to RollingFileAppender's Close() (or
 // at least Flush()).  This ensures that in case of program exit
 // (normal or panicking) that any pending logs are logged.
-func New(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
-	return NewWithStringWriter(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator, nil)
+func NewBuilder(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) *rollingFileAppenderBuilder {
+	return &rollingFileAppenderBuilder{
+		filename:             filename,
+		maxFileSize:          maxFileSize,
+		maxDuration:          maxDuration,
+		maxRotatedLogs:       maxRotatedLogs,
+		rotateIfExists:       rotateIfExists,
+		compressRotatedLogs:  false,
+		maxUncompressedLogs:  0,
+		headerGenerator:      headerGenerator,
+		stringWriterCallback: nil,
+	}
 }
 
-func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
-	if headerGenerator == nil {
-		headerGenerator = func() []string {
+func (b *rollingFileAppenderBuilder) WithLogCompression(maxUncompressedLogs int) *rollingFileAppenderBuilder {
+	b.compressRotatedLogs = true
+	b.maxUncompressedLogs = maxUncompressedLogs
+	return b
+}
+
+func (b *rollingFileAppenderBuilder) WithStringWriter(stringWriterCallback func(*os.File) slogger.StringWriter) *rollingFileAppenderBuilder {
+	b.stringWriterCallback = stringWriterCallback
+	return b
+}
+
+func (b *rollingFileAppenderBuilder) Build() (*RollingFileAppender, error) {
+	if b.headerGenerator == nil {
+		b.headerGenerator = func() []string {
 			return []string{}
 		}
 	}
-	if stringWriterCallback == nil {
-		stringWriterCallback = func(f *os.File) slogger.StringWriter {
+	if b.stringWriterCallback == nil {
+		b.stringWriterCallback = func(f *os.File) slogger.StringWriter {
 			return f
 		}
 	}
 
-	absPath, err := filepath.Abs(filename)
+	absPath, err := filepath.Abs(b.filename)
 	if err != nil {
 		return nil, err
 	}
 
 	appender := &RollingFileAppender{
-		maxFileSize:          maxFileSize,
-		maxDuration:          maxDuration,
-		maxRotatedLogs:       maxRotatedLogs,
+		maxFileSize:          b.maxFileSize,
+		maxDuration:          b.maxDuration,
+		maxRotatedLogs:       b.maxRotatedLogs,
+		compressRotatedLogs:  b.compressRotatedLogs,
+		maxUncompressedLogs:  b.maxUncompressedLogs,
 		absPath:              absPath,
-		headerGenerator:      headerGenerator,
-		stringWriterCallback: stringWriterCallback,
+		headerGenerator:      b.headerGenerator,
+		stringWriterCallback: b.stringWriterCallback,
 	}
 
 	fileInfo, err := os.Stat(absPath)
-	if err == nil && rotateIfExists { // err == nil means file exists
+	if err == nil && b.rotateIfExists { // err == nil means file exists
 		return appender, appender.rotate()
 	} else {
 		// we're either creating a new log file or appending to the current one
@@ -165,6 +207,17 @@ func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Du
 
 		return appender, appender.logHeader()
 	}
+}
+
+// New creates a new RollingFileAppender.
+//
+// This is deprecated in favor of calling NewBuilder().Build()
+func New(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string) (*RollingFileAppender, error) {
+	return NewBuilder(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator).Build()
+}
+
+func NewWithStringWriter(filename string, maxFileSize int64, maxDuration time.Duration, maxRotatedLogs int, rotateIfExists bool, headerGenerator func() []string, stringWriterCallback func(*os.File) slogger.StringWriter) (*RollingFileAppender, error) {
+	return NewBuilder(filename, maxFileSize, maxDuration, maxRotatedLogs, rotateIfExists, headerGenerator).WithStringWriter(stringWriterCallback).Build()
 }
 
 func (self *RollingFileAppender) Append(log *slogger.Log) error {
@@ -383,6 +436,86 @@ func (self *RollingFileAppender) renameLogFile(oldFilename string) error {
 	return nil
 }
 
+func (self *RollingFileAppender) compressMaxUncompressedLogs() error {
+	if self.maxUncompressedLogs < 0 {
+		return nil
+	}
+
+	rotationTimes, err := self.rotationTimeSlice()
+
+	if err != nil {
+		return &MinorRotationError{err}
+	}
+
+	uncompressedRotationTimes := make(RotationTimeSlice, 0, len(rotationTimes))
+	for _, v := range rotationTimes {
+		if !strings.HasSuffix(v.Filename, ".gz") {
+			uncompressedRotationTimes = append(uncompressedRotationTimes, v)
+		}
+	}
+
+	numLogsToCompress := len(uncompressedRotationTimes) - self.maxUncompressedLogs
+	if numLogsToCompress <= 0 {
+		return nil
+	}
+
+	sort.Sort(uncompressedRotationTimes)
+	for _, rotationTime := range uncompressedRotationTimes[:numLogsToCompress] {
+		if err = self.compressLogFile(rotationTime.Filename); err != nil {
+			return &MinorRotationError{err}
+		}
+	}
+	return nil
+}
+
+func (self *RollingFileAppender) compressLogFile(logpath string) error {
+	f, err := os.Open(logpath)
+	if err != nil {
+		return fmt.Errorf("error trying to open %v, %v", logpath, err)
+	}
+	defer f.Close()
+
+	info, err := os.Stat(logpath)
+	if err != nil {
+		return fmt.Errorf("error trying to stat %v, %v", logpath, err)
+	}
+	compressedF, err := os.Create(logpath + ".gz")
+	defer compressedF.Close()
+	if err != nil {
+		return fmt.Errorf("error trying to create %v, %v", compressedF, err)
+	}
+
+	gzipWriter := gzip.NewWriter(compressedF)
+	defer gzipWriter.Close()
+	gzipWriter.ModTime = info.ModTime()
+
+	if _, err := io.Copy(gzipWriter, f); err != nil {
+		return fmt.Errorf("error compressing %v, %v", logpath, err)
+	}
+
+	if err := gzipWriter.Close(); err != nil {
+		return fmt.Errorf("error closing gzipWriter, %v", err)
+	}
+
+	if err := compressedF.Close(); err != nil {
+		return fmt.Errorf("error closing %v, %v", compressedF, err)
+	}
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("error closing %v, %v", logpath, err)
+	}
+
+	if err := os.Chtimes(compressedF.Name(), time.Now(), info.ModTime()); err != nil {
+		return fmt.Errorf("error updating ModTime for %v, %v", compressedF.Name(), err)
+	}
+
+	if err := os.Remove(logpath); err != nil {
+		return fmt.Errorf("error removing old log file %v, %v", logpath, err)
+	}
+
+	return nil
+}
+
 func (self *RollingFileAppender) rotate() error {
 	// close current log if we have one open
 	if self.file != nil {
@@ -393,7 +526,8 @@ func (self *RollingFileAppender) rotate() error {
 	self.curFileSize = 0
 
 	// rename old log
-	if err := self.renameLogFile(self.absPath); err != nil {
+	err := self.renameLogFile(self.absPath)
+	if err != nil {
 		return err
 	}
 
@@ -411,6 +545,11 @@ func (self *RollingFileAppender) rotate() error {
 		return err
 	}
 
+	if self.compressRotatedLogs {
+		if err = self.compressMaxUncompressedLogs(); err != nil {
+			return err
+		}
+	}
 	// remove really old logs
 	self.removeMaxRotatedLogs()
 
