@@ -229,7 +229,8 @@ func containsAnyIgnoredFilename(s string) bool {
 }
 
 func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
-	for skip := 1; skip < 100; skip++ {
+	// Skip the stack frame for `nonSloggerCaller()` and `logf(...)`
+	for skip := 2; skip < 100; skip++ {
 		pc, file, line, ok := runtime.Caller(skip)
 		if !ok || !containsAnyIgnoredFilename(file) {
 			return pc, file, line, ok
@@ -238,6 +239,8 @@ func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 	return 0, "", 0, false
 }
 
+// DO NOT MAKE FUNCTION PUBLIC! `nonSloggerCaller()` relies on the order of stack frames
+// laid out to skip the evaluation for `runtime.Caller(...)` a few times.
 func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	var errors []error
 
