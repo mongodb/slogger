@@ -26,16 +26,19 @@ import (
 var loggerConfigLock sync.RWMutex
 
 type Log struct {
-	Prefix     string
-	Level      Level
-	ErrorCode  ErrorCode
-	Filename   string
-	FuncName   string
-	Line       int
-	Timestamp  time.Time
-	MessageFmt string
-	Args       []interface{}
-	Context    *Context
+	Prefix       string
+	Level        Level
+	ErrorCode    ErrorCode
+	Filename     string
+	FilenameFunc func() string
+	FuncName     string
+	FuncNameFunc func() string
+	Line         int
+	LineFunc     func() int
+	Timestamp    time.Time
+	MessageFmt   string
+	Args         []interface{}
+	Context      *Context
 }
 
 func SimpleLog(prefix string, level Level, errorCode ErrorCode, callerSkip int, messageFmt string, args ...interface{}) *Log {
@@ -238,6 +241,34 @@ func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
 	return 0, "", 0, false
 }
 
+type delayedFuncInfo struct {
+	evaluationFunc func(info *delayedFuncInfo)
+	once           *sync.Once
+	filename       string
+	funcName       string
+	line           int
+}
+
+func (dfi *delayedFuncInfo) evaluateOnce() {
+	dfi.once.Do(func() { dfi.evaluationFunc(dfi) })
+
+}
+
+func (dfi *delayedFuncInfo) Filename() string {
+	dfi.evaluateOnce()
+	return dfi.filename
+}
+
+func (dfi *delayedFuncInfo) FuncName() string {
+	dfi.evaluateOnce()
+	return dfi.funcName
+}
+
+func (dfi *delayedFuncInfo) Line() int {
+	dfi.evaluateOnce()
+	return dfi.line
+}
+
 func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, context *Context, args ...interface{}) (*Log, []error) {
 	var errors []error
 
@@ -247,23 +278,35 @@ func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, co
 		}
 	}
 
-	pc, file, line, ok := nonSloggerCaller()
-	if ok == false {
-		return nil, []error{fmt.Errorf("Failed to find the calling method.")}
+	dfi := delayedFuncInfo{
+		evaluationFunc: func(dfi *delayedFuncInfo) {
+			pc, file, line, ok := nonSloggerCaller()
+			if !ok {
+				dfi.filename = "ERROR"
+				dfi.funcName = "ERROR"
+				return
+			}
+
+			file = stripDirectories(file, self.StripDirs)
+
+			dfi.filename = file
+			dfi.funcName = baseFuncNameForPC(pc)
+			dfi.line = line
+			return
+		},
 	}
 
-	file = stripDirectories(file, self.StripDirs)
 	log := &Log{
-		Prefix:     self.Prefix,
-		Level:      level,
-		ErrorCode:  errorCode,
-		Filename:   file,
-		FuncName:   baseFuncNameForPC(pc),
-		Line:       line,
-		Timestamp:  time.Now(),
-		MessageFmt: messageFmt,
-		Args:       args,
-		Context:    context,
+		Prefix:       self.Prefix,
+		Level:        level,
+		ErrorCode:    errorCode,
+		FilenameFunc: dfi.Filename,
+		FuncNameFunc: dfi.FuncName,
+		LineFunc:     dfi.Line,
+		Timestamp:    time.Now(),
+		MessageFmt:   messageFmt,
+		Args:         args,
+		Context:      context,
 	}
 
 	for _, appender := range self.Appenders {
