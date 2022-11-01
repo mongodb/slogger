@@ -252,6 +252,10 @@ func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, co
 		}
 	}
 
+	if !self.AllowsLevel(level) {
+		return nil, errors
+	}
+
 	pc, file, line, ok := nonSloggerCaller()
 	if ok == false {
 		return nil, []error{fmt.Errorf("Failed to find the calling method.")}
@@ -279,6 +283,26 @@ func (self *Logger) logf(level Level, errorCode ErrorCode, messageFmt string, co
 	}
 
 	return log, errors
+}
+
+type LevelTester interface {
+	AllowsLevel(Level) bool
+}
+
+func (self *Logger) AllowsLevel(level Level) bool {
+	for _, appender := range self.Appenders {
+		if levelTester, ok := appender.(LevelTester); ok {
+			if levelTester.AllowsLevel(level) {
+				return true
+			}
+		} else {
+			// only takes one unknown filter to have to make the assumption that
+			// we allow this level
+			return true
+		}
+	}
+	// if we got to here then we know none of them allow the level
+	return false
 }
 
 type Level uint8

@@ -173,13 +173,25 @@ func (self *FilterAppender) Flush() error {
 	return self.Appender.Flush()
 }
 
-func LevelFilter(threshold Level, appender Appender) *FilterAppender {
+type LevelFilterAppender struct {
+	level Level
+	FilterAppender
+}
+
+func (self *LevelFilterAppender) AllowsLevel(level Level) bool {
+	return level >= self.level
+}
+
+func LevelFilter(threshold Level, appender Appender) Appender {
 	filterFunc := func(log *Log) bool {
 		return log.Level >= threshold
 	}
 
-	return &FilterAppender{
-		Appender: appender,
-		Filter:   filterFunc,
+	return &LevelFilterAppender{
+		threshold,
+		FilterAppender{
+			Appender: appender,
+			Filter:   filterFunc,
+		},
 	}
 }
