@@ -228,8 +228,13 @@ func containsAnyIgnoredFilename(s string) bool {
 	return false
 }
 
+/*
+DO NOT MAKE FUNCTION PUBLIC! Keeping this private lets us skip the stack frames for
+this function and the function in this package that calls `nonSloggerCaller()`, therefore
+allowing us to set the skip=2 in the loop below.
+*/
 func nonSloggerCaller() (pc uintptr, file string, line int, ok bool) {
-	for skip := 1; skip < 100; skip++ {
+	for skip := 2; skip < 100; skip++ {
 		pc, file, line, ok := runtime.Caller(skip)
 		if !ok || !containsAnyIgnoredFilename(file) {
 			return pc, file, line, ok
