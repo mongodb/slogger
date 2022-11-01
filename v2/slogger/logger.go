@@ -296,7 +296,7 @@ func (self *Logger) AllowsLevel(level Level) bool {
 			return true
 		}
 	}
-	// if we got to here then we know known of them allow the level
+	// if we got to here then we know none of them allow the level
 	return false
 }
 

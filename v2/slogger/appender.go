@@ -182,7 +182,7 @@ func (self *LevelFilterAppender) AllowsLevel(level Level) bool {
 	return level >= self.level
 }
 
-func LevelFilter(threshold Level, appender Appender) *LevelFilterAppender {
+func LevelFilter(threshold Level, appender Appender) Appender {
 	filterFunc := func(log *Log) bool {
 		return log.Level >= threshold
 	}
