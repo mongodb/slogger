@@ -300,7 +300,7 @@ func TestTruncation(t *testing.T) {
 		}
 	}
 	// no truncation
-	msg := "Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test. This is just a test. Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test. This is just a test. Please disregard the imminent warning. This is just a test. Please disregard the imminent warning. This is just a test."
+	msg := "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum fermentum, dolor a semper consectetur, purus felis auctor neque, ac pellentesque lectus est sed ipsum. Nunc nec elementum elit nunc."
 	check(msg, msg)
 
 	// set threshold below 100 (the minimum) - no truncation
@@ -312,7 +312,7 @@ func TestTruncation(t *testing.T) {
 
 	// set threshold to 110
 	SetMaxLogSize(110)
-	check(msg, "This is jus...mminent warning")
+	check(msg, "Lorem ipsum dolor sit amet, consectetur adipiscing elit...que lectus est sed ipsum. Nunc nec elementum elit nunc.")
 
 }
 
