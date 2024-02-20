@@ -36,6 +36,10 @@ type Log struct {
 	MessageFmt string
 	Args       []interface{}
 	Context    *Context
+
+	// Appendages to evaluate a message only once
+	message string
+	evalMsgOnce sync.Once
 }
 
 func SimpleLog(prefix string, level Level, errorCode ErrorCode, callerSkip int, messageFmt string, args ...interface{}) *Log {
@@ -105,7 +109,10 @@ func getTruncatedMessage(old string) string {
 }
 
 func (self *Log) Message() string {
-	return getTruncatedMessage(fmt.Sprintf(self.MessageFmt, self.Args...))
+	self.evalMsgOnce.Do(func() {
+		self.message = getTruncatedMessage(fmt.Sprintf(self.MessageFmt, self.Args...))
+	})
+	return self.message
 }
 
 type Logger struct {
